@@ -413,10 +413,10 @@ class LogStash::Outputs::Msai
     end
 
     CREATE_EXIST_ERRORS = { :container => [ :create_container, :container_exist ], :table => [ :create_table, :table_exist ] }
-    def create_exist_recovery( type )
+    def create_exist_recovery( type, name = nil )
       prev_info = @info
       if CREATE_EXIST_ERRORS[type][0] == @recovery
-        name = ( :table == type ? @@state_table_name : @container_name )
+        name ||= ( :table == type ? @@state_table_name : @container_name )
         @info = "create #{type} #{@storage_account_name}/#{name}"
 
         # assume that exceptions can be raised due to this method:
@@ -486,6 +486,22 @@ class LogStash::Outputs::Msai
         @@logger.info { "Note: insert entity failed, already exist, log_state: #{@log_state}" } if :entity_exist == @recovery
       }
       @@failed_on_notification_endpoint_retry_Q << state_to_tuple if success && :committed == @log_state
+    end
+
+    def log_to_table_delete ( tuple = nil )
+      tuple_to_state( tuple ) if tuple
+      @action = :log_to_table_delete
+      @recoverable = [ :invalid_storage_key, :io_failure, :service_unavailable, :table_exist, :create_table, :table_busy, :create_resource ]
+      @info  = "#{@action} #{@storage_account_name}/#{@container_name}/#{@blob_name}"
+
+      success =  storage_io_block( log_to_table_update_recover ) {
+        create_table_exist_recovery
+        if :create_resource == @recovery
+          @@logger.info { "Note: delete entity failed, already deleted" } 
+        else
+          @client.tableClient.delete_entity( @@state_table_name, "#{@@configuration[:blob_prefix]}-#{@log_state}", @blob_name )
+        end
+      }
     end
 
     # return entities
@@ -693,6 +709,9 @@ class LogStash::Outputs::Msai
         elsif 409 == e.status_code && "ContainerAlreadyExists" == e.type
           @recovery = :container_exist
 
+        elsif 409 == e.status_code && "BlobAlreadyExists" == e.type
+          @recovery = :blob_exist
+
         elsif 409 == e.status_code && "TableAlreadyExists" == e.type
           @recovery = :table_exist
 
@@ -802,7 +821,6 @@ class LogStash::Outputs::Msai
     def set_conatainer_and_blob_names
       time_utc = Time.now.utc
       id = @id.to_s.rjust(4, "0")
-
       strtime = time_utc.strftime( "%F" )
       @container_name = "#{@@configuration[:container_prefix]}-#{strtime}"
 
@@ -827,7 +845,6 @@ class LogStash::Outputs::Msai
         :time => Time.now.utc.iso8601,
         :iKey => @intrumentation_key
       }
-      puts "payload: #{notification_hash}"
       notification_hash.to_json
     end 
 

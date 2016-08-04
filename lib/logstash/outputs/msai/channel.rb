@@ -20,7 +20,7 @@ class LogStash::Outputs::Msai
       @intrumentation_key = intrumentation_key
       @table_id = table_id
       set_event_format_ext( configuration )
-      set_table_id_properties( configuration )
+      set_table_properties( configuration )
       @semaphore = Mutex.new
       @failed_on_upload_retry_Q = Queue.new
       @sub_channels = {  }
@@ -37,7 +37,7 @@ class LogStash::Outputs::Msai
 
 
     def << ( event )
-      serialized_event = ( @table_id_csv_map ? serialize_to_csv( event ) :( @table_id_data_field ? serialize_to_data_field( event ) : serialize_to_json( event ) ) )
+      serialized_event = ( @csv_map ? serialize_to_csv( event ) :( @data_field ? serialize_to_data_field( event ) : serialize_to_json( event ) ) )
       if serialized_event
         sub_channel = @sub_channels[Thread.current] || @semaphore.synchronize { @sub_channels[Thread.current] = Sub_channel.new( @event_separator ) }
         sub_channel << serialized_event 
@@ -99,8 +99,8 @@ class LogStash::Outputs::Msai
 
 
     def serialize_to_data_field ( event )
-      event_data = event[@table_id_data_field]
-      @logger.warn { "event not uploaded, because field #{@table_id_data_field} was empty. table_id: #{table_id}, event: #{event}" } unless event_data
+      event_data = event[@data_field]
+      @logger.warn { "event not uploaded, because field #{@data_field} was empty. table_id: #{table_id}, event: #{event}" } unless event_data
       event_data
     end
 
@@ -110,7 +110,7 @@ class LogStash::Outputs::Msai
 
     def serialize_to_csv ( event )
         csv_array = []
-        @table_id_csv_map.each do |column|
+        @csv_map.each do |column|
           value = event[column[:name]] || column[:default] || @csv_default_value
           case (column[:type] || value.class.name).downcase.to_sym
           when :string
@@ -144,31 +144,29 @@ class LogStash::Outputs::Msai
     end
 
 
-    def set_table_id_properties ( configuration )
-      table_id_properties = configuration[:table_ids_properties][@table_id]
-      @blob_max_delay = (table_id_properties[:blob_max_delay] if table_id_properties) || configuration[:blob_max_delay]
-      @event_separator = (table_id_properties[:event_separator] if table_id_properties) || configuration[:event_separator]
+    def set_table_properties ( configuration )
+      table_properties = configuration[:table_ids_properties][@table_id]
+      @blob_max_delay = (table_properties[:blob_max_delay] if table_properties) || configuration[:blob_max_delay]
+      @event_separator = (table_properties[:event_separator] if table_properties) || configuration[:event_separator]
 
-      if table_id_properties
-        @table_id_data_field = table_id_properties[:data_field]
-        @table_id_csv_map = table_id_properties[:csv_map]
-        @csv_default_value = table_id_properties[:csv_default_value] || configuration[:csv_default_value]
-        @csv_separator = table_id_properties[:csv_separator] || configuration[:csv_separator]
+      if table_properties
+        @data_field = table_properties[:data_field]
+        @csv_map = table_properties[:csv_map]
+        @csv_default_value = table_properties[:csv_default_value] || configuration[:csv_default_value]
+        @csv_separator = table_properties[:csv_separator] || configuration[:csv_separator]
       end
-
-      @block_max_delay = @blob_max_delay / 2.0
     end
 
 
     def set_event_format_ext ( configuration )
-      table_id_properties = configuration[:table_ids_properties][@table_id]
-      if table_id_properties.nil?
+      table_properties = configuration[:table_ids_properties][@table_id]
+      if table_properties.nil?
         @event_format_ext = DEFAULT_EXT_EVENT_FORMAT_JSON
 
-      elsif table_id_properties[:ext]
-        @event_format_ext = table_id_properties[:ext]
+      elsif table_properties[:ext]
+        @event_format_ext = table_properties[:ext]
 
-      elsif table_id_properties[:csv_map]
+      elsif table_properties[:csv_map]
         @event_format_ext = DEFAULT_EXT_EVENT_FORMAT_CSV
 
       else
