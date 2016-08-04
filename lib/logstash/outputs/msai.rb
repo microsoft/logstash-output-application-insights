@@ -88,21 +88,21 @@ class LogStash::Outputs::Msai < LogStash::Outputs::Base
   # Advanced, internal, should not be set, the only current valid value is "csv"
   config :csv_ext, :validate => :string
 
-  # Default Application Insights Analytics ikey
-  # will be used only in case it is not specified as a schema property in schemas_properties
+  # Default Application Insights Analytics intrumentation_key
+  # will be used only in case it is not specified as a table_id property in table_ids_properties
   # or as part of the event's fields or event's metadata fields
-  config :ikey, :validate => :string
+  config :intrumentation_key, :validate => :string
 
-  # Default Application Insights Analytics ikey
+  # Default Application Insights Analytics table_id
   # will be used only in case it is not specified as part o
   # of the event's fields or event's metadata fields
-  config :schema, :validate => :string
+  config :table_id, :validate => :string
 
-  # A hash of schemas, where each schema points to a set of properties
+  # A hash of table_ids, where each table_id points to a set of properties
   # the properties are a hash, where the keys are are the properties
-  # current supported properties per schema are:
-  # ikey, ext, csv_map, csv_default_value, csv_separator, max_delay, event_separator, data_field
-  # ikey, Application Insights Analytics ikey, will be used in case not specified in any of the event's fields or events's metadata fileds
+  # current supported properties per table_id are:
+  # intrumentation_key, ext, csv_map, csv_default_value, csv_separator, max_delay, event_separator, data_field
+  # intrumentation_key, Application Insights Analytics intrumentation_key, will be used in case not specified in any of the event's fields or events's metadata fileds
   # data_field, specifies the data field that will contain the full serialize event (either as json or csv), 
   #             when specified, the ext property should be set either to csv or to json
   #             should not be specified together with csv_map property 
@@ -111,7 +111,7 @@ class LogStash::Outputs::Msai < LogStash::Outputs::Base
   # max_delay, maximum latency time, in seconds, since the time the event arrived till it should be commited in azure storage, and Application Insights is notified
   # event_separator, specifies the string that is used as a separator between events in the blob
   # csv_map, specifies the event fields that maps to the csv columns, based on their order
-  #          if specified csv serialization will be used for this schema
+  #          if specified csv serialization will be used for this table_id
   #          should not be specified together with data_field property 
   #          each csv_map field is a hash with 3 keys: name, type, and default. Only name is mandatory
   #               name - is the name of the event fleld that its value should be mapped to this columns
@@ -122,21 +122,16 @@ class LogStash::Outputs::Msai < LogStash::Outputs::Base
   # csv_default_value, specifies the string that is used as the value in a csv record, in case the field does not exist in the event
   #                can be specified only together with csv_map
   #
-  # Example json schema
-  #   schemas_properties => {"a679fbd2-702c-4c46-8548-80082c66ef28" => {"ikey" => "abee940b-e648-4242-b6b3-f2826667bf96", "max_delay" => 60} }
-  # Example json schema, input in data_field
+  # Example json table_id
+  #   table_ids_properties => {"a679fbd2-702c-4c46-8548-80082c66ef28" => {"intrumentation_key" => "abee940b-e648-4242-b6b3-f2826667bf96", "max_delay" => 60} }
+  # Example json table_id, input in data_field
   #   {"ab6a3584-aef0-4a82-8725-2f2336e59f3e" => {"data_field" => "message". "ext" => "json"} }
-  # Example csv schema, input in data_field
+  # Example csv table_id, input in data_field
   #   {"ab6a3584-aef0-4a82-8725-2f2336e59f3e" => {"data_field" => "message". "ext" => "csv"} }
-  # Example csv schema, input in event fields
+  # Example csv table_id, input in event fields
   #   {"ab6a3584-aef0-4a82-8725-2f2336e59f3e" => { "csv_map" => [ {name => "Timestamp" type => datetime }, "Value", "Custom" ] } }
 
-  config :schemas_properties, :validate => :hash, :default => {}
-
-
-  # Advanced, internal, should not be set, the default is 50,000, 
-  # azure storage maximum number of blocks per blob is 50,000
-  config :blob_max_blocks, :validate => :number
+  config :table_ids_properties, :validate => :hash, :default => {}
 
   # Advanced, internal, should not be set, the default is 192 GB ( = 50,000 * 4 MB ) 
   # azure storage maximum number of blocks per blob is 192 GB ( = 50,000 * 4 MB ) 

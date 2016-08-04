@@ -3,8 +3,8 @@
 class LogStash::Outputs::Msai
   class Blob
 
-    attr_reader :ikey
-    attr_reader :schema
+    attr_reader :intrumentation_key
+    attr_reader :table_id
     attr_reader :storage_account_name
     attr_reader :container_name
     attr_reader :blob_name
@@ -22,7 +22,6 @@ class LogStash::Outputs::Msai
       @@logger = configuration[:logger]
       @@io_retry_delay = configuration[:io_retry_delay]
       @@io_max_retries = configuration[:io_max_retries]
-      @@blob_max_blocks = configuration[:blob_max_blocks]
       @@blob_max_bytesize = configuration[:blob_max_bytesize]
       @@blob_max_events = configuration[:blob_max_events]
       @@state_table_name = "#{configuration[:table_prefix]}#{STATE_TABLE_NAME}"
@@ -194,8 +193,8 @@ class LogStash::Outputs::Msai
 
       if channel
         @id = id
-        @ikey = channel.ikey
-        @schema = channel.schema
+        @intrumentation_key = channel.intrumentation_key
+        @table_id = channel.table_id
         @blob_max_delay = channel.blob_max_delay
 
         @event_format_ext = channel.event_format_ext
@@ -268,9 +267,9 @@ class LogStash::Outputs::Msai
 
     def blob_full? ( next_block = nil )
       if next_block
-        @@blob_max_blocks < @uploaded_block_ids.length + 1 || @@blob_max_events < @uploaded_events_count + next_block.events_count || @@blob_max_bytesize < @uploaded_bytesize  + next_block.bytesize
+        BLOB_MAX_BLOCKS < @uploaded_block_ids.length + 1 || @@blob_max_events < @uploaded_events_count + next_block.events_count || @@blob_max_bytesize < @uploaded_bytesize  + next_block.bytesize
       else
-        @@blob_max_blocks <= @uploaded_block_ids.length || @@blob_max_events <= @uploaded_events_count || @@blob_max_bytesize <= @uploaded_bytesize
+        BLOB_MAX_BLOCKS <= @uploaded_block_ids.length || @@blob_max_events <= @uploaded_events_count || @@blob_max_bytesize <= @uploaded_bytesize
       end
     end 
 
@@ -300,7 +299,7 @@ class LogStash::Outputs::Msai
     end
 
     def table_entity_to_tuple( options = {} )
-      [ options[:start_time.to_s] || Time.now.utc, options[:action.to_s], options[:ikey.to_s], options[:schema.to_s], 
+      [ options[:start_time.to_s] || Time.now.utc, options[:action.to_s], options[:intrumentation_key.to_s], options[:table_id.to_s], 
         options[:storage_account_name.to_s], options[:container_name.to_s], options[:blob_name.to_s], 
         eval( options[:uploaded_block_ids.to_s] ), eval( options[:uploaded_block_numbers.to_s] ), 
         options[:uploaded_events_count.to_s] || 0, options[:uploaded_bytesize.to_s] || 0, options[:oldest_event_time.to_s] || Time.now.utc,
@@ -310,7 +309,7 @@ class LogStash::Outputs::Msai
     end
 
     def state_to_tuple
-      [ @start_time || Time.now.utc, @action, @ikey, @schema, 
+      [ @start_time || Time.now.utc, @action, @intrumentation_key, @table_id, 
         @storage_account_name, @container_name, @blob_name, 
         @uploaded_block_ids, @uploaded_block_numbers, 
         @uploaded_events_count, @uploaded_bytesize, @oldest_event_time,
@@ -320,7 +319,7 @@ class LogStash::Outputs::Msai
     end
 
     def tuple_to_state ( tuple )
-      ( @start_time, @action, @ikey, @schema, 
+      ( @start_time, @action, @intrumentation_key, @table_id, 
         @storage_account_name, @container_name, @blob_name, 
         @uploaded_block_ids, @uploaded_block_numbers, 
         @uploaded_events_count, @uploaded_bytesize, @oldest_event_time,
@@ -329,7 +328,7 @@ class LogStash::Outputs::Msai
     end
 
     def state_to_table_entity
-      { :start_time => @start_time, :ikey => @ikey, :schema => @schema, 
+      { :start_time => @start_time, :intrumentation_key => @intrumentation_key, :table_id => @table_id, 
         :storage_account_name => @storage_account_name, :container_name => @container_name, :blob_name => @blob_name, 
         :uploaded_block_ids => @uploaded_block_ids.to_s, :uploaded_block_numbers => @uploaded_block_numbers.to_s, 
         :uploaded_events_count => @uploaded_events_count, :uploaded_bytesize => @uploaded_bytesize, :oldest_event_time => @oldest_event_time,
@@ -359,7 +358,7 @@ class LogStash::Outputs::Msai
     end
 
     def test_notification_endpoint_recover
-      proc do |reason, e| @recovery = :ok if :invliad_ikey == reason || :invliad_schema == reason end
+      proc do |reason, e| @recovery = :ok if :invalid_intrumentation_key == reason || :invalid_table_id == reason end
     end
 
     def test_notification_endpoint( storage_account_name )
@@ -372,8 +371,8 @@ class LogStash::Outputs::Msai
         if @recovery.nil?
           @container_name = "logstash-test-container"
           @blob_name = "logstash-test-blob"
-          @schema = GUID_NULL
-          @ikey = GUID_NULL
+          @table_id = GUID_NULL
+          @intrumentation_key = GUID_NULL
           @info = "#{@action}"
           set_blob_sas_url
           payload = create_payload
@@ -710,7 +709,7 @@ class LogStash::Outputs::Msai
           @recovery = :invalid_storage_key_notify
 
         elsif 400 == e.status_code  && "Unknown" == e.type && e.description.include?("Invalid instrumentation key")
-          @recovery = :invliad_ikey
+          @recovery = :invalid_intrumentation_key
 
         elsif 500 == e.status_code  && "Unknown" == e.type && e.description.include?("Processing error")
           @recovery = :notification_process_down
@@ -765,17 +764,17 @@ class LogStash::Outputs::Msai
           sleep( @@io_retry_delay )
           @@logger.error { "Failed to #{@info} ;( recovery: retry, error: #{e.inspect}" }
 
-        when :io_failure, :service_unavailable, :notification_process_down, :invliad_ikey, :invliad_schema
+        when :io_failure, :service_unavailable, :notification_process_down, :invalid_intrumentation_key, :invalid_table_id
           if @try_count < @max_tries
             @client = @client.dispose if @client
             sleep( @@io_retry_delay )
             @@logger.error { "Failed to #{@info} ;( recovery: retry, try #{@try_count} / #{@max_tries}, error: #{e.inspect}" }
             @try_count += 1
           else
-            if :invliad_ikey == @recovery
-              Channels.instance.mark_invalid_ikey( @ikey )
-            elsif :invliad_schema == @recovery
-              Channels.instance.mark_invalid_schema( @schema )
+            if :invalid_intrumentation_key == @recovery
+              Channels.instance.mark_invalid_intrumentation_key( @intrumentation_key )
+            elsif :invalid_table_id == @recovery
+              Channels.instance.mark_invalid_table_id( @table_id )
             elsif :io_failure == @recovery || ( :service_unavailable == @recovery && :notify != @action )
               @client = @client.dispose( :io_to_storage_failed ) if @client
             end
@@ -808,7 +807,7 @@ class LogStash::Outputs::Msai
       @container_name = "#{@@configuration[:container_prefix]}-#{strtime}"
 
       strtime = time_utc.strftime( "%F-%H-%M-%S-%L" )
-      @blob_name = "#{@@configuration[:blob_prefix]}_ikey-#{@ikey}_schema-#{@schema}_id-#{id}_#{strtime}.#{@event_format_ext}"
+      @blob_name = "#{@@configuration[:blob_prefix]}_ikey-#{@intrumentation_key}_table-#{@table_id}_id-#{id}_#{strtime}.#{@event_format_ext}"
     end
 
 
@@ -819,15 +818,16 @@ class LogStash::Outputs::Msai
           :baseData => {
             :ver           => BASE_DATA_REQUIRED_VERSION,
             :blobSasUri    => @blob_sas_url.to_s,
-            :sourceName    => @schema,
+            :sourceName    => @table_id,
             :sourceVersion => @@configuration[:notification_version].to_s
           }
         }, 
         :ver  => @@configuration[:notification_version], 
         :name => REQUEST_NAME,
         :time => Time.now.utc.iso8601,
-        :iKey => @ikey
+        :iKey => @intrumentation_key
       }
+      puts "payload: #{notification_hash}"
       notification_hash.to_json
     end 
 

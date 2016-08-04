@@ -10,13 +10,13 @@ class LogStash::Outputs::Msai
 
       @logger = configuration[:logger]
 
-      @ikey_schema_db = {}
+      @intrumentation_key_table_id_db = {}
       @channels = [  ]
       @create_semaphore = Mutex.new
 
-      @default_ikey = configuration[:ikey]
-      @default_schema = configuration[:schema]
-      @schemas_properties = configuration[:schemas_properties]
+      @default_intrumentation_key = configuration[:intrumentation_key]
+      @default_table_id = configuration[:table_id]
+      @table_ids_properties = configuration[:table_ids_properties]
 
       @flow_control = Flow_control.instance
 
@@ -33,17 +33,17 @@ class LogStash::Outputs::Msai
         @logger.info { "received a LogStash::FLUSH event, start shutdown" }
 
       else
-        schema = event[METADATA_FIELD_SCHEMA] || event[FIELD_SCHEMA] || @default_schema
-        ikey = event[METADATA_FIELD_IKEY] || event[FIELD_IKEY] || ( @schemas_properties[schema][SCHEMA_PROPERTY_IKEY] if @schemas_properties[schema] ) || @default_ikey
+        table_id = event[METADATA_FIELD_TABLE_ID] || event[FIELD_TABLE_ID] || @default_table_id
+        intrumentation_key = event[METADATA_FIELD_INSTRUMENTATION_KEY] || event[FIELD_INSTRUMENTATION_KEY] || ( @table_ids_properties[table_id][TABLE_ID_PROPERTY_INSTRUMENTATION_KEY] if @table_ids_properties[table_id] ) || @default_intrumentation_key
 
         begin
-          channel = dispatch_channel( ikey, schema )
+          channel = dispatch_channel( intrumentation_key, table_id )
 
         rescue NoChannelError
           begin
-            channel = create_channel( ikey, schema )
+            channel = create_channel( intrumentation_key, table_id )
           rescue ChannelExistError # can happen due to race conditions
-            channel = dispatch_channel( ikey, schema )
+            channel = dispatch_channel( intrumentation_key, table_id )
           end
         end
 
@@ -69,13 +69,13 @@ class LogStash::Outputs::Msai
     private
 
     # return channel
-    def dispatch_channel ( ikey, schema )
+    def dispatch_channel ( intrumentation_key, table_id )
       begin
-        channel = @ikey_schema_db[ikey][schema]
-        channel.ikey     # don't remove it, it is to emit an exception in case channel not created yet'
+        channel = @intrumentation_key_table_id_db[intrumentation_key][table_id]
+        channel.intrumentation_key     # don't remove it, it is to emit an exception in case channel not created yet'
         channel
       rescue => e
-        raise NoChannelError if @ikey_schema_db[ikey].nil? || @ikey_schema_db[ikey][schema].nil?
+        raise NoChannelError if @intrumentation_key_table_id_db[intrumentation_key].nil? || @intrumentation_key_table_id_db[intrumentation_key][table_id].nil?
         @logger.error { "Channel dispatch failed - error: #{e.inspect}" }
         raise e
       end 
@@ -83,12 +83,12 @@ class LogStash::Outputs::Msai
 
 
     # return channel
-    def create_channel ( ikey, schema )
+    def create_channel ( intrumentation_key, table_id )
       @create_semaphore.synchronize {      
-        raise ChannelExistError if @ikey_schema_db[ikey] && @ikey_schema_db[ikey][schema]
-        @ikey_schema_db[ikey] ||= {}
-        channel = Channel.new( ikey, schema )
-        @ikey_schema_db[ikey][schema] = channel
+        raise ChannelExistError if @intrumentation_key_table_id_db[intrumentation_key] && @intrumentation_key_table_id_db[intrumentation_key][table_id]
+        @intrumentation_key_table_id_db[intrumentation_key] ||= {}
+        channel = Channel.new( intrumentation_key, table_id )
+        @intrumentation_key_table_id_db[intrumentation_key][table_id] = channel
         @channels << channel
         channel
       }
@@ -102,11 +102,11 @@ class LogStash::Outputs::Msai
       end
     end
 
-    def mark_invalid_ikey ( ikey )
+    def mark_invalid_intrumentation_key ( intrumentation_key )
       # TODO should go to lost and found container
     end
 
-    def mark_invalid_schema ( schema )
+    def mark_invalid_table_id ( table_id )
       # TODO should go to lost and found container
     end
 

@@ -16,15 +16,14 @@ class LogStash::Outputs::Msai
       :event_separator => @event_separator || DEFAULT_EVENT_SEPARATOR,
       :csv_separator => @csv_separator || DEFAULT_CSV_SEPARATOR,
       :csv_default_value => @csv_default_value || DEFAULT_CSV_DEFAULT_VALUE,
-      :schemas_properties => @schemas_properties || {  },
+      :table_ids_properties => @table_ids_properties || {  },
 
       :disable_notification => @disable_notification || DEFAULT_DISABLE_NOTIFICATION,
       :disable_blob_upload => @disable_blob_upload || DEFAULT_DISABLE_BLOB_UPLOAD,
 
-      :ikey => @ikey || DEFAULT_IKEY,
-      :schema => @schema || DEFAULT_SCHEMA,
+      :intrumentation_key => @intrumentation_key || DEFAULT_INSTRUMENTATION_KEY,
+      :table_id => @table_id || DEFAULT_TABLE_ID,
 
-      :blob_max_blocks => @blob_max_blocks || DEFAULT_BLOB_MAX_BLOCKS,
       :blob_max_bytesize => @blob_max_bytesize || DEFAULT_BLOB_MAX_BYTESIZE,
       :blob_max_events => @blob_max_events || DEFAULT_BLOB_MAX_EVENTS,
       :blob_max_delay => @blob_max_delay || DEFAULT_BLOB_MAX_DELAY,
@@ -54,8 +53,8 @@ class LogStash::Outputs::Msai
   VALID_UNDEFINDED = [ :disable_notification, :disable_blob_upload, :ca_file, :storage_account_name_key ]
 
   GUID_NULL =       "00000000-0000-0000-0000-000000000000"
-  IKEY_TEMPLATE =   "KKKKKKKK-KKKK-KKKK-KKKK-KKKKKKKKKKKK"
-  SCHEMA_TEMPLATE = "SSSSSSSS-SSSS-SSSS-SSSS-SSSSSSSSSSSS"
+  INSTRUMENTATION_KEY_TEMPLATE =   "KKKKKKKK-KKKK-KKKK-KKKK-KKKKKKKKKKKK"
+  TABLE_ID_TEMPLATE = "SSSSSSSS-SSSS-SSSS-SSSS-SSSSSSSSSSSS"
 
   # notification payload constants
   REQUEST_NAME = "Microsoft.ApplicationInsights.OpenSchema"
@@ -65,14 +64,12 @@ class LogStash::Outputs::Msai
   # logger constants
   LOGGER_LEVEL_MAP = {:DEBUG => Logger::DEBUG, :INFO => Logger::INFO, :WARN => Logger::WARN, :ERROR => Logger::ERROR, :FATAL => Logger::FATAL, :UNKNOWN => Logger::UNKNOWN}
 
-  MIN_BLOB_BLOCK_MAX_BYTESIZE = 1                         # in bytes - 1 byte -  - 
-  MAX_BLOB_BLOCK_MAX_BYTESIZE = 4 * 1024 * 1024           # in bytes - 4 Mega bytes - blob limitation
+  BLOB_BLOCK_MAX_BYTESIZE = 4 * 1024 * 1024               # in bytes - 4 Mega bytes - blob limitation
 
-  MIN_BLOB_MAX_BLOCKS = 1                                 # in blocks - one block
-  MAX_BLOB_MAX_BLOCKS = 50000                             # in blocks - 50,0000 blocks - blob limitation
+  BLOB_MAX_BLOCKS = 50000                                 # in blocks - 50,0000 blocks - blob limitation
 
-  MIN_BLOB_MAX_BYTESIZE = 1                               # 1 bytes
-  MAX_BLOB_MAX_BYTESIZE = MAX_BLOB_MAX_BLOCKS * MAX_BLOB_BLOCK_MAX_BYTESIZE   # 192 Giga  bytes
+  MIN_BLOB_MAX_BYTESIZE = BLOB_BLOCK_MAX_BYTESIZE         # BLOB_BLOCK_MAX_BYTESIZE
+  MAX_BLOB_MAX_BYTESIZE = BLOB_MAX_BLOCKS * BLOB_BLOCK_MAX_BYTESIZE   # 192 Giga  bytes
 
   MIN_BLOB_MAX_EVENTS = 1                                 # 256 Kilo events
   MAX_BLOB_MAX_EVENTS = 0                                 # No Limit
@@ -111,10 +108,10 @@ class LogStash::Outputs::Msai
   MIN_FLOW_CONTROL_DELAY = 0.1                            # in seconds, 1 seconds, can be less than 1 seconds, like 0.5, 0.1
   MAX_FLOW_CONTROL_DELAY = 0                              # in seconds, 1 seconds, can be less than 1 seconds, like 0.5, 0.1
 
-  METADATA_FIELD_IKEY = "[@metadata]ikey"
-  METADATA_FIELD_SCHEMA = "[@metadata]schema"
-  FIELD_IKEY = "ikey"
-  FIELD_SCHEMA = "schema"
+  METADATA_FIELD_INSTRUMENTATION_KEY = "[@metadata]intrumentation_key"
+  METADATA_FIELD_TABLE_ID = "[@metadata]table_id"
+  FIELD_INSTRUMENTATION_KEY = "intrumentation_key"
+  FIELD_TABLE_ID = "table_id"
 
   STATE_TABLE_NAME = "BlobsState"
 
@@ -122,18 +119,18 @@ class LogStash::Outputs::Msai
   BLOB_LOGSTASH_PREFIX = "logstash"
   TABLE_LOGSTASH_PREFIX = "Logstash" # case sensitive, no dash
 
-  SCHEMA_PROPERTY_IKEY = "ikey"
-  SCHEMA_PROPERTY_EXT = "ext"
-  SCHEMA_PROPERTY_CSV_MAP = "csv_map"
-  SCHEMA_PROPERTY_CSV_DEFAULT_VALUE = "csv_default_value"
-  SCHEMA_PROPERTY_CSV_SEPARATOR = "csv_separator"
-  SCHEMA_PROPERTY_MAX_DELAY = "max_delay"
-  SCHEMA_PROPERTY_EVENT_SEPARATOR = "event_separator"
-  SCHEMA_PROPERTY_DATA_FIELD = "data_field"
+  TABLE_ID_PROPERTY_INSTRUMENTATION_KEY = "intrumentation_key"
+  TABLE_ID_PROPERTY_EXT = "ext"
+  TABLE_ID_PROPERTY_CSV_MAP = "csv_map"
+  TABLE_ID_PROPERTY_CSV_DEFAULT_VALUE = "csv_default_value"
+  TABLE_ID_PROPERTY_CSV_SEPARATOR = "csv_separator"
+  TABLE_ID_PROPERTY_MAX_DELAY = "max_delay"
+  TABLE_ID_PROPERTY_EVENT_SEPARATOR = "event_separator"
+  TABLE_ID_PROPERTY_DATA_FIELD = "data_field"
 
-  SCHEMA_PROPERTY_CSV_MAP_NAME = "name"
-  SCHEMA_PROPERTY_CSV_MAP_TYPE = "type"
-  SCHEMA_PROPERTY_CSV_MAP_DEFAULT = "default"
+  TABLE_ID_PROPERTY_CSV_MAP_NAME = "name"
+  TABLE_ID_PROPERTY_CSV_MAP_TYPE = "type"
+  TABLE_ID_PROPERTY_CSV_MAP_DEFAULT = "default"
   VALID_CSV_MAP_TYPES = [ "string", "hash", "array", "number", "json", "boolean", "float", "integer", "dynamic", "datetime", "object" ]
   
   VALID_LOGGER_SHIFT_AGES = [ "daily", "weekly", "monthly" ]
@@ -141,8 +138,8 @@ class LogStash::Outputs::Msai
   DEFAULT_EXT_EVENT_FORMAT_JSON = "json"
   DEFAULT_EXT_EVENT_FORMAT_CSV = "csv"
 
-  DEFAULT_IKEY = GUID_NULL
-  DEFAULT_SCHEMA = GUID_NULL
+  DEFAULT_INSTRUMENTATION_KEY = GUID_NULL
+  DEFAULT_TABLE_ID = GUID_NULL
   DEFAULT_EVENT_SEPARATOR = "\r\n"
   DEFAULT_CSV_SEPARATOR = ","
   DEFAULT_CSV_DEFAULT_VALUE = ""
@@ -152,15 +149,12 @@ class LogStash::Outputs::Msai
   DEFAULT_JSON_EXT = "json"
   DEFAULT_CSV_EXT = "csv"
 
-  BLOB_BLOCK_MAX_BYTESIZE = MAX_BLOB_BLOCK_MAX_BYTESIZE
-
-  DEFAULT_BLOB_MAX_BLOCKS = 256                       # in seconds
-  DEFAULT_BLOB_MAX_BYTESIZE = MAX_BLOB_MAX_BYTESIZE
+  DEFAULT_BLOB_MAX_BYTESIZE = 1 * 1024 * 1024 * 1024
   DEFAULT_BLOB_MAX_EVENTS = 256 * 1024                 # 256 Kilo events
 
   DEFAULT_BLOB_MAX_DELAY = 60                         # in seconds
   DEFAULT_BLOB_RETENTION_TIME = 60 * 60 * 24 * 7      # in seconds - one week
-  DEFAULT_BLOB_ACCESS_EXPIRY_TIME = 60 * 60 * 24 * 7  # in seconds - one week
+  DEFAULT_BLOB_ACCESS_EXPIRY_TIME = 60 * 60 * 24 * 1  # in seconds - one day
   DEFAULT_STORAGE_RESURRECT_DELAY = 10
   DEFAULT_NOTIFICATION_ENDPOINT = "https://dc.services.visualstudio.com/v2/track"
   DEFAULT_NOTIFICATION_VERSION = 1

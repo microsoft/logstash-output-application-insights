@@ -90,13 +90,13 @@ class LogStash::Outputs::Msai
         when :blob_prefix
           blob_prefix = validate_and_adjust( config_name, config_value, String )
           unless blob_prefix.empty?
-            len = 1024 - "-#{BLOB_LOGSTASH_PREFIX}_ikey-#{IKEY_TEMPLATE}_schema-#{SCHEMA_TEMPLATE}_yyyy-mm-dd-HH-MM-SS-LLL".length
+            len = 1024 - "-#{BLOB_LOGSTASH_PREFIX}_ikey-#{INSTRUMENTATION_KEY_TEMPLATE}_table-#{TABLE_ID_TEMPLATE}_yyyy-mm-dd-HH-MM-SS-LLL".length
             validate_max( "blob_prefix length", blob_prefix.length, len )
             blob_prefix += "-"
           end
           blob_prefix += BLOB_LOGSTASH_PREFIX
 
-          raise ConfigurationError, "#{config_name.to_s} doesn't meet url format" unless Utils.url?( "http://storage/container/#{blob_prefix}_key-#{IKEY_TEMPLATE}_schema-#{SCHEMA_TEMPLATE}.json" )
+          raise ConfigurationError, "#{config_name.to_s} doesn't meet url format" unless Utils.url?( "http://storage/container/#{blob_prefix}_ikey-#{INSTRUMENTATION_KEY_TEMPLATE}_table-#{TABLE_ID_TEMPLATE}.json" )
           configuration[config_name] = blob_prefix
 
         when :json_ext
@@ -105,10 +105,10 @@ class LogStash::Outputs::Msai
         when :csv_ext
           configuration[config_name] = validate_and_adjust_ext( config_name, config_value, configuration[:blob_prefix] )
 
-        when :ikey
+        when :intrumentation_key
           configuration[config_name] = validate_and_adjust_guid( config_name, config_value )
 
-        when :schema
+        when :table_id
           configuration[config_name] = validate_and_adjust_guid( config_name, config_value )
 
         when :event_separator
@@ -119,9 +119,6 @@ class LogStash::Outputs::Msai
 
         when :csv_default_value
           configuration[config_name] = validate_and_adjust( config_name, config_value, String )
-
-        when :blob_max_blocks
-          configuration[config_name] = validate_and_adjust_integer( config_name, config_value, MIN_BLOB_MAX_BLOCKS, MAX_BLOB_MAX_BLOCKS )
 
         when :blob_max_bytesize
          configuration[config_name] = validate_and_adjust_integer( config_name, config_value, MIN_BLOB_MAX_BYTESIZE, MAX_BLOB_MAX_BYTESIZE )
@@ -179,45 +176,45 @@ class LogStash::Outputs::Msai
             raise ConfigurationError, "##{config_name.to_s}[#{index}]:name bad format, must have only alphanumeric characters" unless Utils.alphanumeric?( name )
 
             keys = [ keys ] if keys.is_a?( String )
-            keys = validate_and_adjust( "#{config_name.to_s}[#{index}]:keys", keys, Array, :disallow_empty )
+            keys = validate_and_adjust( "#{config_name}[#{index}]:keys", keys, Array, :disallow_empty )
             keys.each_index do |i|
-              key = validate_and_adjust( "#{config_name.to_s}[#{index}:keys[#{i}]", keys[i], String, :disallow_empty )
-              raise ConfigurationError, "#{config_name.to_s}[#{index}:keys[#{i}] must have only valid base64 characters" unless Utils.base64?( key )
+              key = validate_and_adjust( "#{config_name}[#{index}:keys[#{i}]", keys[i], String, :disallow_empty )
+              raise ConfigurationError, "#{config_name}[#{index}:keys[#{i}] must have only valid base64 characters" unless Utils.base64?( key )
             end
             index += 1
             [ name.downcase, keys ]
           }
           configuration[config_name] = storage_account_name_key
 
-        when :schemas_properties
-          new_schemas_properties = {}
-          schemas_properties = validate_and_adjust( config_name, config_value, Hash )
-          schemas_properties.each_pair { |schema, properties|
-            schema = validate_and_adjust_guid( "#{config_name.to_s}:schema", schema )
-            properties = validate_and_adjust( "#{config_name.to_s}[#{schema}]", properties, Hash )
+        when :table_ids_properties
+          new_table_ids_properties = {}
+          table_ids_properties = validate_and_adjust( config_name, config_value, Hash )
+          table_ids_properties.each_pair { |table_id, properties|
+            table_id = validate_and_adjust_guid( "#{config_name}:table_id", table_id )
+            properties = validate_and_adjust( "#{config_name}[#{table_id}]", properties, Hash )
 
             new_properties = {}
 
-            properties.each_pair { |schema_property_name, schema_property_value|
-              schema_property_name = validate_and_adjust( "#{config_name.to_s}[#{schema}]:property", schema_property_name, String, :disallow_empty )
-              info = "#{config_name.to_s}[#{schema}][#{schema_property_name}]"
-              case schema_property_name.downcase
-              when SCHEMA_PROPERTY_IKEY
-                new_properties[:ikey] = validate_and_adjust_guid( info, schema_property_value )
-              when SCHEMA_PROPERTY_EXT
-                new_properties[:ext] = validate_and_adjust_ext( info ,schema_property_value, configuration[:blob_prefix] ) # be careful depends on order
-              when SCHEMA_PROPERTY_CSV_DEFAULT_VALUE
-                new_properties[:csv_default_value] = validate_and_adjust( info, schema_property_value, String )
-              when SCHEMA_PROPERTY_CSV_SEPARATOR
-                new_properties[:csv_separator] = validate_and_adjust( info, schema_property_value, String )
-              when SCHEMA_PROPERTY_MAX_DELAY
-                new_properties[:blob_max_delay] = validate_and_adjust_number( info, schema_property_value, MIN_BLOB_MAX_DELAY, MAX_BLOB_MAX_DELAY )
-              when SCHEMA_PROPERTY_EVENT_SEPARATOR
-                new_properties[:event_separator] = validate_and_adjust( info, schema_property_value, String )
-              when SCHEMA_PROPERTY_DATA_FIELD
-                new_properties[:data_field] = validate_and_adjust( info, schema_property_value, String )
-              when SCHEMA_PROPERTY_CSV_MAP
-                csv_map = schema_property_value
+            properties.each_pair { |table_id_property_name, table_id_property_value|
+              table_id_property_name = validate_and_adjust( "#{config_name}[#{table_id}]:property", table_id_property_name, String, :disallow_empty )
+              info = "#{config_name}[#{table_id}][#{table_id_property_name}]"
+              case table_id_property_name.downcase
+              when TABLE_ID_PROPERTY_INSTRUMENTATION_KEY
+                new_properties[:intrumentation_key] = validate_and_adjust_guid( info, table_id_property_value )
+              when TABLE_ID_PROPERTY_EXT
+                new_properties[:ext] = validate_and_adjust_ext( info ,table_id_property_value, configuration[:blob_prefix] ) # be careful depends on order
+              when TABLE_ID_PROPERTY_CSV_DEFAULT_VALUE
+                new_properties[:csv_default_value] = validate_and_adjust( info, table_id_property_value, String )
+              when TABLE_ID_PROPERTY_CSV_SEPARATOR
+                new_properties[:csv_separator] = validate_and_adjust( info, table_id_property_value, String )
+              when TABLE_ID_PROPERTY_MAX_DELAY
+                new_properties[:blob_max_delay] = validate_and_adjust_number( info, table_id_property_value, MIN_BLOB_MAX_DELAY, MAX_BLOB_MAX_DELAY )
+              when TABLE_ID_PROPERTY_EVENT_SEPARATOR
+                new_properties[:event_separator] = validate_and_adjust( info, table_id_property_value, String )
+              when TABLE_ID_PROPERTY_DATA_FIELD
+                new_properties[:data_field] = validate_and_adjust( info, table_id_property_value, String )
+              when TABLE_ID_PROPERTY_CSV_MAP
+                csv_map = table_id_property_value
                 csv_map = [ csv_map ] if csv_map.is_a?( String )
                 csv_map = validate_and_adjust( info, csv_map, Array, :disallow_empty )
                 new_csv_map = []
@@ -225,18 +222,18 @@ class LogStash::Outputs::Msai
                 csv_map.each do |column|
                   new_column = {}
 
-                  column = { SCHEMA_PROPERTY_CSV_MAP_NAME => column } if column.is_a?( String )
+                  column = { TABLE_ID_PROPERTY_CSV_MAP_NAME => column } if column.is_a?( String )
                   column = validate_and_adjust( "#{info}[#{index}]", column, Hash, :disallow_empty )
-                  raise ConfigurationError, "#{info}[#{index}][#{SCHEMA_PROPERTY_CSV_MAP_NAME}] must be defined" unless column[SCHEMA_PROPERTY_CSV_MAP_NAME]
-                  new_column[:name] = validate_and_adjust( "#{info}[#{index}][#{SCHEMA_PROPERTY_CSV_MAP_NAME}]", column[SCHEMA_PROPERTY_CSV_MAP_NAME], String )
+                  raise ConfigurationError, "#{info}[#{index}][#{TABLE_ID_PROPERTY_CSV_MAP_NAME}] must be defined" unless column[TABLE_ID_PROPERTY_CSV_MAP_NAME]
+                  new_column[:name] = validate_and_adjust( "#{info}[#{index}][#{TABLE_ID_PROPERTY_CSV_MAP_NAME}]", column[TABLE_ID_PROPERTY_CSV_MAP_NAME], String )
 
-                  if column[SCHEMA_PROPERTY_CSV_MAP_DEFAULT]
-                    new_column[:default] = validate_and_adjust( "#{info}[#{index}][#{SCHEMA_PROPERTY_CSV_MAP_DEFAULT}]", column[SCHEMA_PROPERTY_CSV_MAP_DEFAULT], String )
+                  if column[TABLE_ID_PROPERTY_CSV_MAP_DEFAULT]
+                    new_column[:default] = validate_and_adjust( "#{info}[#{index}][#{TABLE_ID_PROPERTY_CSV_MAP_DEFAULT}]", column[TABLE_ID_PROPERTY_CSV_MAP_DEFAULT], String )
                   end
 
-                  if column[SCHEMA_PROPERTY_CSV_MAP_TYPE]
-                    new_column[:type] = validate_and_adjust( "#{info}[#{index}][#{SCHEMA_PROPERTY_CSV_MAP_TYPE}]", column[SCHEMA_PROPERTY_CSV_MAP_TYPE], String ).downcase
-                    raise ConfigurationError, "#{info}[#{index}][#{SCHEMA_PROPERTY_CSV_MAP_TYPE}] can be only one of the following values: #{VALID_CSV_MAP_TYPES}" unless VALID_CSV_MAP_TYPES.any? {|type| type == new_column[:type]}
+                  if column[TABLE_ID_PROPERTY_CSV_MAP_TYPE]
+                    new_column[:type] = validate_and_adjust( "#{info}[#{index}][#{TABLE_ID_PROPERTY_CSV_MAP_TYPE}]", column[TABLE_ID_PROPERTY_CSV_MAP_TYPE], String ).downcase
+                    raise ConfigurationError, "#{info}[#{index}][#{TABLE_ID_PROPERTY_CSV_MAP_TYPE}] can be only one of the following values: #{VALID_CSV_MAP_TYPES}" unless VALID_CSV_MAP_TYPES.any? {|type| type == new_column[:type]}
                     new_column[:type] = new_column[:type].to_sym
                   end
                   new_csv_map << new_column
@@ -246,9 +243,9 @@ class LogStash::Outputs::Msai
               else
               end
             }
-            new_schemas_properties[schema] = new_properties
+            new_table_ids_properties[table_id] = new_properties
           }
-          configuration[config_name] = new_schemas_properties
+          configuration[config_name] = new_table_ids_properties
         else
           configuration[config_name] = config_value
         end
@@ -263,7 +260,7 @@ class LogStash::Outputs::Msai
     def self.validate_and_adjust_ext ( property, ext, prefix )
       ext = validate_and_adjust( property, ext, String )
       raise ConfigurationError, "#{property.to_s} must be a valid extension string, have only alphanumeric, dash and underline characters" unless Utils.ext?( ext )
-      len = 1024 - "#{prefix}-#{BLOB_LOGSTASH_PREFIX}_ikey-#{IKEY_TEMPLATE}_schema-#{SCHEMA_TEMPLATE}_yyyy-mm-dd-HH-MM-SS-LLL".length
+      len = 1024 - "#{prefix}-#{BLOB_LOGSTASH_PREFIX}_ikey-#{INSTRUMENTATION_KEY_TEMPLATE}_table-#{TABLE_ID_TEMPLATE}_yyyy-mm-dd-HH-MM-SS-LLL".length
       raise ConfigurationError, "#{property.to_s} length cannot be more than #{len} characters" unless ext.length <= len
       ext
     end
