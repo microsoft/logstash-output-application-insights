@@ -198,7 +198,6 @@ class LogStash::Outputs::Msai
         @blob_max_delay = channel.blob_max_delay
 
         @event_format_ext = channel.event_format_ext
-        @failed_on_upload_retry_Q = channel.failed_on_upload_retry_Q
 
         unless no_queue
 
@@ -303,7 +302,7 @@ class LogStash::Outputs::Msai
         options[:storage_account_name.to_s], options[:container_name.to_s], options[:blob_name.to_s], 
         eval( options[:uploaded_block_ids.to_s] ), eval( options[:uploaded_block_numbers.to_s] ), 
         options[:uploaded_events_count.to_s] || 0, options[:uploaded_bytesize.to_s] || 0, options[:oldest_event_time.to_s] || Time.now.utc,
-        options[:event_format_ext.to_s], options[:blob_max_delay.to_s] || 0, options[:failed_on_upload_retry_Q.to_s],
+        options[:event_format_ext.to_s], options[:blob_max_delay.to_s] || 0,
         options[:log_state.to_s].to_sym
       ]
     end
@@ -313,7 +312,7 @@ class LogStash::Outputs::Msai
         @storage_account_name, @container_name, @blob_name, 
         @uploaded_block_ids, @uploaded_block_numbers, 
         @uploaded_events_count, @uploaded_bytesize, @oldest_event_time,
-        @event_format_ext, @blob_max_delay, @failed_on_upload_retry_Q, 
+        @event_format_ext, @blob_max_delay,
         @log_state
       ]
     end
@@ -323,7 +322,7 @@ class LogStash::Outputs::Msai
         @storage_account_name, @container_name, @blob_name, 
         @uploaded_block_ids, @uploaded_block_numbers, 
         @uploaded_events_count, @uploaded_bytesize, @oldest_event_time,
-        @event_format_ext, @blob_max_delay, @failed_on_upload_retry_Q, 
+        @event_format_ext, @blob_max_delay,
         @log_state) = tuple
     end
 
@@ -388,6 +387,8 @@ class LogStash::Outputs::Msai
       proc do |reason, e|
         if :invalid_storage_key_notify == reason
           @@failed_on_notify_retry_Qs[@storage_account_name] << state_to_tuple
+        elsif :invalid_intrumentation_key == reason || :invalid_table_id == reason
+          Channels.instance.channel( @intrumentation_key, @table_id ).failed_on_notify_retry_Q << state_to_tuple
         else
           @@endpoint_state_on = false
           @@failed_on_notification_endpoint_retry_Q << state_to_tuple
@@ -555,7 +556,7 @@ class LogStash::Outputs::Msai
         unless :io_all_dead == reason
           @recovery = :invalid_storage_account
         else 
-          @failed_on_upload_retry_Q << @block_to_upload
+          Channels.instance.channel( @intrumentation_key, @table_id ).failed_on_upload_retry_Q << @block_to_upload
           @block_to_upload = nil
         end
       end
@@ -735,6 +736,8 @@ class LogStash::Outputs::Msai
 
         elsif 503 == e.status_code
           @recovery = :service_unavailable
+        elsif 404 == e.status_code
+          @recovery = :create_resource
         else
           puts "\n>>>> HTTP error - #{e.inspect} <<<<\n"
           raise e

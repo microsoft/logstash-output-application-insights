@@ -6,12 +6,14 @@ class LogStash::Outputs::Msai
     attr_reader :intrumentation_key
     attr_reader :table_id
     attr_reader :failed_on_upload_retry_Q
+    attr_reader :failed_on_notify_retry_Q
     attr_reader :event_format_ext
     attr_reader :blob_max_delay
 
     public
 
     def initialize ( intrumentation_key, table_id )
+      @closing = false
       configuration = Config.current
 
       @logger = configuration[:logger]
@@ -23,18 +25,24 @@ class LogStash::Outputs::Msai
       set_table_properties( configuration )
       @semaphore = Mutex.new
       @failed_on_upload_retry_Q = Queue.new
+      @failed_on_notify_retry_Q = Queue.new
       @sub_channels = {  }
       @active_blobs = [ Blob.new( self, 1 ) ]
 
-      launch_recovery_thread
+      launch_upload_recovery_thread
+      launch_notify_recovery_thread
     end
 
-    def close_active_blobs
+    def close
+      @closing = true
       @active_blobs.each do |blob|
         blob.close
       end
     end
 
+    def stopped?
+      @closing
+    end
 
     def << ( event )
       serialized_event = ( @csv_map ? serialize_to_csv( event ) :( @data_field ? serialize_to_data_field( event ) : serialize_to_json( event ) ) )
@@ -80,7 +88,7 @@ class LogStash::Outputs::Msai
 
     private
 
-    def launch_recovery_thread
+    def launch_upload_recovery_thread
       #recovery thread
       Thread.new do
         next_block = nil
@@ -97,6 +105,19 @@ class LogStash::Outputs::Msai
       end
     end
 
+
+    def launch_notify_recovery_thread
+      #recovery thread
+      Thread.new do
+        loop do
+          tuple ||= @failed_on_notify_retry_Q.pop
+          begin
+            Stud.stoppable_sleep( 60 ) { stopped? }
+          end until Clients.instance.storage_account_state_on? || stopped?
+          Blob.new.notify( tuple )
+        end
+      end
+    end
 
     def serialize_to_data_field ( event )
       event_data = event[@data_field]

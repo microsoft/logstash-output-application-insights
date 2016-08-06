@@ -36,19 +36,22 @@ class LogStash::Outputs::Msai
         table_id = event[METADATA_FIELD_TABLE_ID] || event[FIELD_TABLE_ID] || @default_table_id
         intrumentation_key = event[METADATA_FIELD_INSTRUMENTATION_KEY] || event[FIELD_INSTRUMENTATION_KEY] || ( @table_ids_properties[table_id][TABLE_ID_PROPERTY_INSTRUMENTATION_KEY] if @table_ids_properties[table_id] ) || @default_intrumentation_key
 
-        begin
-          channel = dispatch_channel( intrumentation_key, table_id )
-
-        rescue NoChannelError
-          begin
-            channel = create_channel( intrumentation_key, table_id )
-          rescue ChannelExistError # can happen due to race conditions
-            channel = dispatch_channel( intrumentation_key, table_id )
-          end
-        end
-
         @flow_control.pass_or_wait
-        channel << event
+        channel( intrumentation_key, table_id ) << event
+      end
+    end
+
+
+    def channel ( intrumentation_key, table_id )
+      begin
+        dispatch_channel( intrumentation_key, table_id )
+
+      rescue NoChannelError
+        begin
+          create_channel( intrumentation_key, table_id )
+        rescue ChannelExistError # can happen due to race conditions
+          dispatch_channel( intrumentation_key, table_id )
+        end
       end
     end
 
@@ -98,7 +101,7 @@ class LogStash::Outputs::Msai
 
     def close
       @channels.each do |channel|
-        channel.close_active_blobs
+        channel.close
       end
     end
 

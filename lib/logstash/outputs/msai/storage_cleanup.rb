@@ -77,6 +77,7 @@ class LogStash::Outputs::Msai
 
     # return true if all notified entities were copied
     def copy_not_notified_blobs( storage_account_name, container_name )
+      pending = nil
       continuation_token = nil
       filter = "#{:container_name} eq '#{container_name}' and #{:log_state} ne '#{:notified}'"
       begin
@@ -84,16 +85,22 @@ class LogStash::Outputs::Msai
         return nil unless entities
         token = entities.continuation_token
         entities.each do |entity|
-          puts "entity properties - #{entity.properties}"
-          return nil unless copy_not_notified_blob( storage_account_name, container_name, entity.properties[:blob_name.to_s] )
-          @logger.warn { "copied blob: #{storage_account_name}/#{container_name}/#{blob_name} to #{@not_notified_container} container because cannot notify" }
+          blob_name = entity.properties[:blob_name.to_s]
+          return nil unless ( status = not_notified_blob_copy_status( storage_account_name, blob_name ) )
+          if :pending == status
+            pending = true
+          elsif :success != status
+            return nil unless (status = copy_not_notified_blob( storage_account_name, container_name, blob_name ) )
+            pending = true unless :success == status
+          end
+          @logger.warn { "copied blob: #{storage_account_name}/#{container_name}/#{blob_name} to #{@not_notified_container} container because cannot notify" } if :success == status
         end
       end while continuation_token
-      true
+      pending.nil?
     end
 
 
-    # return true if copied
+    # return status or nil if failed
     def copy_not_notified_blob( storage_account_name, container_name, blob_name )
       @storage_account_name = storage_account_name
 
@@ -104,16 +111,36 @@ class LogStash::Outputs::Msai
       success =  storage_io_block( proc do |reason, e| end ) {
         create_exist_recovery( :container, @not_notified_container ) { |name| @client.blobClient.create_container( name ) }
         if :blob_exit == @recovery
-          tuple = ["", :success]
+          tuple = ["", :pending]
         else
-          puts "copy - #{@not_notified_container}, #{blob_name}, #{container_name}, #{blob_name}"
           tuple = @client.blobClient.copy_blob(@not_notified_container, blob_name, container_name, blob_name)
         end
       }
-      return true if tuple && :success == tuple[1].to_sym
-      nil
+      tuple ? tuple[1].to_sym : nil
     end
 
+    # return copy status, if failed return nil
+    def not_notified_blob_copy_status ( storage_account_name, blob_name )
+      @storage_account_name = storage_account_name
+
+      @action = :check_not_notified_blob_copy_status
+      @recoverable = [ :invalid_storage_key, :io_failure, :service_unavailable, :create_resource, :create_container, :container_exist ]
+      @info  = "#{@action} #{@storage_account_name}/#{@not_notified_container}/#{blob_name}"
+      status = nil
+      success =  storage_io_block( proc do |reason, e| end ) {
+        create_exist_recovery( :container, @not_notified_container ) { |name| @client.blobClient.create_container( name ) }
+        if :create_resource == @recovery
+          status = :not_started
+        elsif
+          result = @client.blobClient.get_blob_properties( @not_notified_container, blob_name )
+          if result
+            properties = result.properties
+            status = ( properties[:copy_status] || :success).to_sym
+          end
+        end
+      }
+      status
+    end
 
     # return true if all container entities were removed from log table
     def delete_container_entities( storage_account_name, container_name )
