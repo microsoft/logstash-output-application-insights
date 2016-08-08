@@ -121,22 +121,23 @@ class LogStash::Outputs::Msai
 
   TABLE_ID_PROPERTY_INSTRUMENTATION_KEY = "intrumentation_key"
   TABLE_ID_PROPERTY_EXT = "ext"
-  TABLE_ID_PROPERTY_CSV_MAP = "csv_map"
+  TABLE_ID_PROPERTY_FIELDS_MAP = "fields_map"
   TABLE_ID_PROPERTY_CSV_DEFAULT_VALUE = "csv_default_value"
   TABLE_ID_PROPERTY_CSV_SEPARATOR = "csv_separator"
   TABLE_ID_PROPERTY_MAX_DELAY = "max_delay"
   TABLE_ID_PROPERTY_EVENT_SEPARATOR = "event_separator"
   TABLE_ID_PROPERTY_DATA_FIELD = "data_field"
 
-  TABLE_ID_PROPERTY_CSV_MAP_NAME = "name"
-  TABLE_ID_PROPERTY_CSV_MAP_TYPE = "type"
-  TABLE_ID_PROPERTY_CSV_MAP_DEFAULT = "default"
-  VALID_CSV_MAP_TYPES = [ "string", "hash", "array", "number", "json", "boolean", "float", "integer", "dynamic", "datetime", "object" ]
+  TABLE_ID_PROPERTY_FIELDS_MAP_NAME = "name"
+  TABLE_ID_PROPERTY_FIELDS_MAP_TYPE = "type"
+  TABLE_ID_PROPERTY_FIELDS_MAP_DEFAULT = "default"
+  VALID_FIELDS_MAP_TYPES = [ "string", "hash", "array", "number", "json", "boolean", "float", "integer", "dynamic", "datetime", "object" ]
   
   VALID_LOGGER_SHIFT_AGES = [ "daily", "weekly", "monthly" ]
 
-  DEFAULT_EXT_EVENT_FORMAT_JSON = "json"
-  DEFAULT_EXT_EVENT_FORMAT_CSV = "csv"
+  EXT_EVENT_FORMAT_JSON = "json"
+  EXT_EVENT_FORMAT_CSV = "csv"
+  VALID_EXT_EVENT_FORMAT = [EXT_EVENT_FORMAT_JSON, EXT_EVENT_FORMAT_CSV ]
 
   DEFAULT_INSTRUMENTATION_KEY = GUID_NULL
   DEFAULT_TABLE_ID = GUID_NULL

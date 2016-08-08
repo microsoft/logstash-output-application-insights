@@ -18,7 +18,7 @@ class LogStash::Outputs::Msai
 
         when :logger_level
           logger_level = validate_and_adjust( config_name, config_value, String )
-          raise ConfigurationError, "#{config_name.to_s} must one of the valid log levels" unless LOGGER_LEVEL_MAP[logger_level.upcase.to_sym]
+          raise ConfigurationError, "#{config_name.to_s} can be set to only one of the valid log levels" unless LOGGER_LEVEL_MAP[logger_level.upcase.to_sym]
           configuration[config_name] = LOGGER_LEVEL_MAP[logger_level.upcase.to_sym]
 
         when :logger_files
@@ -51,7 +51,7 @@ class LogStash::Outputs::Msai
         when :logger_shift_age
           if config_value.is_a?( String )
             config_value = validate_and_adjust( config_name, config_value, String ).downcase
-            raise ConfigurationError, "#{config_name.to_s} if string, can be only one of the following values: #{VALID_LOGGER_SHIFT_AGES}" unless VALID_LOGGER_SHIFT_AGES. include?( config_value )
+            raise ConfigurationError, "#{config_name.to_s} if string, can be set to only one of the following values: #{VALID_LOGGER_SHIFT_AGES}" unless VALID_LOGGER_SHIFT_AGES. include?( config_value )
           elsif config_value.is_a?( Integer )
             config_value = validate_and_adjust_integer( config_name, config_value, MIN_LOGGER_SHIFT_AGE, MAX_LOGGER_SHIFT_AGE )
           else
@@ -98,12 +98,6 @@ class LogStash::Outputs::Msai
 
           raise ConfigurationError, "#{config_name.to_s} doesn't meet url format" unless Utils.url?( "http://storage/container/#{blob_prefix}_ikey-#{INSTRUMENTATION_KEY_TEMPLATE}_table-#{TABLE_ID_TEMPLATE}.json" )
           configuration[config_name] = blob_prefix
-
-        when :json_ext
-          configuration[config_name] = validate_and_adjust_ext( config_name, config_value, configuration[:blob_prefix] )
-
-        when :csv_ext
-          configuration[config_name] = validate_and_adjust_ext( config_name, config_value, configuration[:blob_prefix] )
 
         when :intrumentation_key
           configuration[config_name] = validate_and_adjust_guid( config_name, config_value )
@@ -202,6 +196,8 @@ class LogStash::Outputs::Msai
               when TABLE_ID_PROPERTY_INSTRUMENTATION_KEY
                 new_properties[:intrumentation_key] = validate_and_adjust_guid( info, table_id_property_value )
               when TABLE_ID_PROPERTY_EXT
+                table_id_property_value = table_id_property_value.downcase
+                raise ConfigurationError, "#{info}, can be set to only one of the following values: #{VALID_EXT_EVENT_FORMAT}" unless VALID_EXT_EVENT_FORMAT.include?( table_id_property_value )
                 new_properties[:ext] = validate_and_adjust_ext( info ,table_id_property_value, configuration[:blob_prefix] ) # be careful depends on order
               when TABLE_ID_PROPERTY_CSV_DEFAULT_VALUE
                 new_properties[:csv_default_value] = validate_and_adjust( info, table_id_property_value, String )
@@ -213,36 +209,39 @@ class LogStash::Outputs::Msai
                 new_properties[:event_separator] = validate_and_adjust( info, table_id_property_value, String )
               when TABLE_ID_PROPERTY_DATA_FIELD
                 new_properties[:data_field] = validate_and_adjust( info, table_id_property_value, String )
-              when TABLE_ID_PROPERTY_CSV_MAP
-                csv_map = table_id_property_value
-                csv_map = [ csv_map ] if csv_map.is_a?( String )
-                csv_map = validate_and_adjust( info, csv_map, Array, :disallow_empty )
-                new_csv_map = []
+              when TABLE_ID_PROPERTY_FIELDS_MAP
+                fields_map = table_id_property_value
+                fields_map = [ fields_map ] if fields_map.is_a?( String )
+                fields_map = validate_and_adjust( info, fields_map, Array, :disallow_empty )
+                new_fields_map = []
                 index = 0
-                csv_map.each do |column|
+                fields_map.each do |column|
                   new_column = {}
 
-                  column = { TABLE_ID_PROPERTY_CSV_MAP_NAME => column } if column.is_a?( String )
+                  column = { TABLE_ID_PROPERTY_FIELDS_MAP_NAME => column } if column.is_a?( String )
                   column = validate_and_adjust( "#{info}[#{index}]", column, Hash, :disallow_empty )
-                  raise ConfigurationError, "#{info}[#{index}][#{TABLE_ID_PROPERTY_CSV_MAP_NAME}] must be defined" unless column[TABLE_ID_PROPERTY_CSV_MAP_NAME]
-                  new_column[:name] = validate_and_adjust( "#{info}[#{index}][#{TABLE_ID_PROPERTY_CSV_MAP_NAME}]", column[TABLE_ID_PROPERTY_CSV_MAP_NAME], String )
+                  raise ConfigurationError, "#{info}[#{index}][#{TABLE_ID_PROPERTY_FIELDS_MAP_NAME}] must be defined" unless column[TABLE_ID_PROPERTY_FIELDS_MAP_NAME]
+                  new_column[:name] = validate_and_adjust( "#{info}[#{index}][#{TABLE_ID_PROPERTY_FIELDS_MAP_NAME}]", column[TABLE_ID_PROPERTY_FIELDS_MAP_NAME], String )
 
-                  if column[TABLE_ID_PROPERTY_CSV_MAP_DEFAULT]
-                    new_column[:default] = validate_and_adjust( "#{info}[#{index}][#{TABLE_ID_PROPERTY_CSV_MAP_DEFAULT}]", column[TABLE_ID_PROPERTY_CSV_MAP_DEFAULT], String )
+                  if column[TABLE_ID_PROPERTY_FIELDS_MAP_DEFAULT]
+                    new_column[:default] = validate_and_adjust( "#{info}[#{index}][#{TABLE_ID_PROPERTY_FIELDS_MAP_DEFAULT}]", column[TABLE_ID_PROPERTY_FIELDS_MAP_DEFAULT], String )
                   end
 
-                  if column[TABLE_ID_PROPERTY_CSV_MAP_TYPE]
-                    new_column[:type] = validate_and_adjust( "#{info}[#{index}][#{TABLE_ID_PROPERTY_CSV_MAP_TYPE}]", column[TABLE_ID_PROPERTY_CSV_MAP_TYPE], String ).downcase
-                    raise ConfigurationError, "#{info}[#{index}][#{TABLE_ID_PROPERTY_CSV_MAP_TYPE}] can be only one of the following values: #{VALID_CSV_MAP_TYPES}" unless VALID_CSV_MAP_TYPES.any? {|type| type == new_column[:type]}
+                  if column[TABLE_ID_PROPERTY_FIELDS_MAP_TYPE]
+                    new_column[:type] = validate_and_adjust( "#{info}[#{index}][#{TABLE_ID_PROPERTY_FIELDS_MAP_TYPE}]", column[TABLE_ID_PROPERTY_FIELDS_MAP_TYPE], String ).downcase
+                    raise ConfigurationError, "#{info}[#{index}][#{TABLE_ID_PROPERTY_FIELDS_MAP_TYPE}] can be only one of the following values: #{VALID_FIELDS_MAP_TYPES}" unless VALID_FIELDS_MAP_TYPES.any? {|type| type == new_column[:type]}
                     new_column[:type] = new_column[:type].to_sym
                   end
-                  new_csv_map << new_column
+                  new_fields_map << new_column
                   index += 1
                 end
-                new_properties[:csv_map] = new_csv_map
+                new_properties[:fields_map] = new_fields_map
               else
               end
             }
+            if new_properties[:ext] && EXT_EVENT_FORMAT_CSV == new_properties[:ext] && new_properties[:fields_map].nil? &&  new_properties[:data_field].nil?
+              raise ConfigurationError, "#{config_name}[#{table_id}] cannot be set to csv extension, without setting fields_map or data_field"
+            end
             new_table_ids_properties[table_id] = new_properties
           }
           configuration[config_name] = new_table_ids_properties

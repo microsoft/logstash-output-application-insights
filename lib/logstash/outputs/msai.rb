@@ -82,12 +82,6 @@ class LogStash::Outputs::Msai < LogStash::Outputs::Base
   # string may include only characters that are allowed in any valid url
   config :blob_prefix, :validate => :string
   
-  # Advanced, internal, should not be set, the only current valid value is "json"
-  config :json_ext, :validate => :string
-
-  # Advanced, internal, should not be set, the only current valid value is "csv"
-  config :csv_ext, :validate => :string
-
   # Default Application Insights Analytics intrumentation_key
   # will be used only in case it is not specified as a table_id property in table_ids_properties
   # or as part of the event's fields or event's metadata fields
@@ -101,35 +95,44 @@ class LogStash::Outputs::Msai < LogStash::Outputs::Base
   # A hash of table_ids, where each table_id points to a set of properties
   # the properties are a hash, where the keys are are the properties
   # current supported properties per table_id are:
-  # intrumentation_key, ext, csv_map, csv_default_value, csv_separator, max_delay, event_separator, data_field
+  # intrumentation_key, ext, fields_map, csv_default_value, csv_separator, max_delay, event_separator, data_field
   # intrumentation_key, Application Insights Analytics intrumentation_key, will be used in case not specified in any of the event's fields or events's metadata fileds
-  # data_field, specifies the data field that will contain the full serialize event (either as json or csv), 
-  #             when specified, the ext property should be set either to csv or to json
-  #             should not be specified together with csv_map property 
+  # data_field, specifies the data field that may contain the full serialized event (either as json or csv), 
+  #             when specified, the ext property should be set either to csv or to json (json is the default)
+  #             if event. does not conatin the field, value will be created based on the fileds in the evnt, according to fields_map if configured, or all fileds in event
+  #             if event contains this filed, and ext is csv
+  #                  if value is a string, it will be used as is as the serialized event, without validating whether it is a csv string
+  #                  if value is an array, it will be serialized as an array of csv columns
+  #                  if value is a hash, it will be serialized based on fields_map to csv columns
+  #             if event contains this filed, and ext is json
+  #                  if value is a string, it will be used as is as the serialized event, without validating whether it is a json string
+  #                  if value is a hash, it will be serialized to json, if fileds_map exit, it will be based on filds_map
+  #                  if value is an array, it will be zipped with fields_map (if exist) and serialized to json
   # ext, blob extension, the only valid values are either csv or json, 
-  #      should and must be specified only together with the data_field property
+  #             should be set whenever the default json is not appropriate (.e, csv)
   # max_delay, maximum latency time, in seconds, since the time the event arrived till it should be commited in azure storage, and Application Insights is notified
   # event_separator, specifies the string that is used as a separator between events in the blob
-  # csv_map, specifies the event fields that maps to the csv columns, based on their order
-  #          if specified csv serialization will be used for this table_id
-  #          should not be specified together with data_field property 
-  #          each csv_map field is a hash with 3 keys: name, type, and default. Only name is mandatory
+  # fields_map, specifies the event fields that should be serialized, and their order (order is required for csv)
+  #          if csv serialization will be used for this table_id
+  #          each fields_map field is a hash with 3 keys: name, type, and default. Only name is mandatory
   #               name - is the name of the event fleld that its value should be mapped to this columns
   #               type - is the type of this field: "string", "hash", "array", "number", "json", "boolean", "float", "integer", "dynamic", "datetime", "object"
   #               default - is the value to be used for this column, in case the field is missing in the event
   # csv_separator, specifies the string that is used as a separator between columns, 
-  #                can be specified only together with csv_map
+  #                can be specified only together with fields_map
   # csv_default_value, specifies the string that is used as the value in a csv record, in case the field does not exist in the event
-  #                can be specified only together with csv_map
+  #                can be specified only together with fields_map
   #
   # Example json table_id
   #   table_ids_properties => {"a679fbd2-702c-4c46-8548-80082c66ef28" => {"intrumentation_key" => "abee940b-e648-4242-b6b3-f2826667bf96", "max_delay" => 60} }
   # Example json table_id, input in data_field
   #   {"ab6a3584-aef0-4a82-8725-2f2336e59f3e" => {"data_field" => "message". "ext" => "json"} }
   # Example csv table_id, input in data_field
-  #   {"ab6a3584-aef0-4a82-8725-2f2336e59f3e" => {"data_field" => "message". "ext" => "csv"} }
+  #   {"ab6a3584-aef0-4a82-8725-2f2336e59f3e" => {"data_field" => "csv_message". "ext" => "csv"} }
   # Example csv table_id, input in event fields
-  #   {"ab6a3584-aef0-4a82-8725-2f2336e59f3e" => { "csv_map" => [ {name => "Timestamp" type => datetime }, "Value", "Custom" ] } }
+  #   {"ab6a3584-aef0-4a82-8725-2f2336e59f3e" => { "ext" => "csv", "fields_map" => [ {name => "Timestamp" type => datetime }, "Value", "Custom" ] } }
+  # Example csv table_id, input in event fields
+  #   {"ab6a3584-aef0-4a82-8725-2f2336e59f3e" => { "ext" => "json", "fields_map" => [ "Timestamp", "Value", "Custom" ] } }
 
   config :table_ids_properties, :validate => :hash, :default => {}
 
@@ -246,7 +249,7 @@ class LogStash::Outputs::Msai < LogStash::Outputs::Base
     @shutdown = Shutdown.instance
     @channels = Channels.instance
 
-    @storage_cleanup = Storage_cleanup.instance
+    @storage_cleanup = Storage_cleanup.start
 
     @private_logger.info { "plugin registered" }
     return "ok\n"

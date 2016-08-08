@@ -26,8 +26,9 @@ class LogStash::Outputs::Msai
       @semaphore = Mutex.new
       @failed_on_upload_retry_Q = Queue.new
       @failed_on_notify_retry_Q = Queue.new
-      @sub_channels = {  }
+      @workers_channel = {  }
       @active_blobs = [ Blob.new( self, 1 ) ]
+      @state = State.instance
 
       launch_upload_recovery_thread
       launch_notify_recovery_thread
@@ -45,21 +46,27 @@ class LogStash::Outputs::Msai
     end
 
     def << ( event )
-      serialized_event = ( @csv_map ? serialize_to_csv( event ) :( @data_field ? serialize_to_data_field( event ) : serialize_to_json( event ) ) )
+      if @data_field && event[@data_field]
+        serialized_event = serialize_data_field( event[@data_field] )
+      else
+        serialized_event = ( EXT_EVENT_FORMAT_CSV == @event_format_ext ? serialize_to_csv( event ) : serialize_to_json( event ) )
+      end
       if serialized_event
-        sub_channel = @sub_channels[Thread.current] || @semaphore.synchronize { @sub_channels[Thread.current] = Sub_channel.new( @event_separator ) }
-        sub_channel << serialized_event 
+        sub_channel = @workers_channel[Thread.current] || @semaphore.synchronize { @workers_channel[Thread.current] = Sub_channel.new( @event_separator ) }
+        sub_channel << serialized_event
+      else
+        @logger.warn { "event not uploaded, no relevant data in event. table_id: #{table_id}, event: #{event}" }
       end
     end
 
 
     def collect_blocks
-      sub_channels = @semaphore.synchronize { @sub_channels.dup }
+      workers_channel = @semaphore.synchronize { @workers_channel.dup }
       full_block_list = [  ]
       prev_last_block = nil
 
-      sub_channels.each_value do |sub_channel|
-        block_list = sub_channel.get_block_list!
+      workers_channel.each_value do |worker_channel|
+        block_list = worker_channel.get_block_list!
         unless block_list.empty?
           last_block = block_list.pop
           full_block_list.concat( block_list )
@@ -106,6 +113,7 @@ class LogStash::Outputs::Msai
     end
 
 
+    # thread that failed to notify due to Application Isights error, such as wrong key or wrong schema
     def launch_notify_recovery_thread
       #recovery thread
       Thread.new do
@@ -114,43 +122,61 @@ class LogStash::Outputs::Msai
           begin
             Stud.stoppable_sleep( 60 ) { stopped? }
           end until Clients.instance.storage_account_state_on? || stopped?
-          Blob.new.notify( tuple )
+          if  stopped?
+            @state.dec_pending_notifications
+          else
+            Blob.new.notify( tuple )
+          end
         end
       end
     end
 
-    def serialize_to_data_field ( event )
-      event_data = event[@data_field]
-      @logger.warn { "event not uploaded, because field #{@data_field} was empty. table_id: #{table_id}, event: #{event}" } unless event_data
-      event_data
+
+    def serialize_data_field ( data )
+      serialized_data = nil
+      if data.is_a?( String )
+        serialized_data = data
+      elsif EXT_EVENT_FORMAT_CSV == @event_format_ext
+        if data.is_a?( Array )
+          serialized_data = data.to_csv( :col_sep => @csv_separator )
+        elsif data.is_a?( Hash )
+          serialized_data = serialize_to_csv( data )
+        end
+      elsif EXT_EVENT_FORMAT_JSON == @event_format_ext
+        if data.is_a?( Hash )
+          serialized_data = serialize_to_json( data )
+        elsif data.is_a?( Array ) && @fields_map && !@fields_map.empty?
+          serialized_data = serialize_to_json( Hash[@fields_map.map {|field| field[:name]}.zip( data )] )
+        end
+      end
+      serialized_data
     end
+
 
     def serialize_to_json ( event )
-      event.to_json
+      return event.to_json unless @fields_map && !@fields_map.empty?
+
+      json_hash = {  }
+      @fields_map.each do |column|
+        value = event[column[:name]] || column[:default]
+        json_hash[column[:name]] = value if value
+      end
+      return nil if json_hash.empty?
+      json_hash.to_json
     end
 
+
     def serialize_to_csv ( event )
-        csv_array = []
-        @csv_map.each do |column|
-          value = event[column[:name]] || column[:default] || @csv_default_value
-          case (column[:type] || value.class.name).downcase.to_sym
-          when :string
-            csv_array << value
-          when :hash, :array, :json, :dynamic, :object
-            csv_array << value.to_json
-          when :integer
-            csv_array << value
-          when :number, :float
-            csv_array << value
-          when :datetime
-            csv_array << value
-          when :boolean
-            csv_array << value
-          else
-            csv_array << value
-          end
-        end
-        csv_array.to_csv( :col_sep => @csv_separator )
+      return nil unless @fields_map && !@fields_map.empty?
+
+      csv_array = [  ]
+      @fields_map.each do |column|
+        value = event[column[:name]] || column[:default] || @csv_default_value
+        type = (column[:type] || value.class.name).downcase.to_sym
+        csv_array << ( [:hash, :array, :json, :dynamic, :object].include?( type ) ? value.to_json : value )
+      end
+      return nil if csv_array.empty?
+      csv_array.to_csv( :col_sep => @csv_separator )
     end
 
 
@@ -167,12 +193,13 @@ class LogStash::Outputs::Msai
 
     def set_table_properties ( configuration )
       table_properties = configuration[:table_ids_properties][@table_id]
-      @blob_max_delay = (table_properties[:blob_max_delay] if table_properties) || configuration[:blob_max_delay]
-      @event_separator = (table_properties[:event_separator] if table_properties) || configuration[:event_separator]
+
+      @blob_max_delay = ( table_properties[:blob_max_delay] if table_properties ) || configuration[:blob_max_delay]
+      @event_separator = ( table_properties[:event_separator] if table_properties ) || configuration[:event_separator]
 
       if table_properties
         @data_field = table_properties[:data_field]
-        @csv_map = table_properties[:csv_map]
+        @fields_map = table_properties[:fields_map]
         @csv_default_value = table_properties[:csv_default_value] || configuration[:csv_default_value]
         @csv_separator = table_properties[:csv_separator] || configuration[:csv_separator]
       end
@@ -181,18 +208,7 @@ class LogStash::Outputs::Msai
 
     def set_event_format_ext ( configuration )
       table_properties = configuration[:table_ids_properties][@table_id]
-      if table_properties.nil?
-        @event_format_ext = DEFAULT_EXT_EVENT_FORMAT_JSON
-
-      elsif table_properties[:ext]
-        @event_format_ext = table_properties[:ext]
-
-      elsif table_properties[:csv_map]
-        @event_format_ext = DEFAULT_EXT_EVENT_FORMAT_CSV
-
-      else
-        @event_format_ext = DEFAULT_EXT_EVENT_FORMAT_JSON
-      end
+      @event_format_ext = ( table_properties[:ext] if table_properties ) || EXT_EVENT_FORMAT_JSON
     end
 
   end

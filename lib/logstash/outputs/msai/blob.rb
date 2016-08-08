@@ -30,20 +30,20 @@ class LogStash::Outputs::Msai
 
       # queues, per storage_account_name, for failed blob commit, will continue to try resending
       @@failed_on_commit_retry_Qs = {}
-      launch_storage_recovery_threads( @@failed_on_commit_retry_Qs, :commit )
+      launch_storage_recovery_threads( @@failed_on_commit_retry_Qs, :commit, :io_failure )
       launch_storage_recovery_table_threads( :uploading )
 
       # queues, per storage_account_name, for failed notify, will continue to try resending
       @@failed_on_notify_retry_Qs = {}
-      launch_storage_recovery_threads( @@failed_on_notify_retry_Qs, :notify )
+      launch_storage_recovery_threads( @@failed_on_notify_retry_Qs, :notify, :notify_failed_blob_not_accessible )
       launch_storage_recovery_table_threads( :committed )
 
       # for failed to notify due to endpoint, will continue to try resending
-      launch_endpoint_recovery_thread ( :notify )
+      launch_endpoint_recovery_thread
 
       # queues, per storage_account_name, for failed to log to table, will continue to try resending
       @@failed_on_log_to_table_retry_Qs = {}
-      launch_storage_recovery_threads( @@failed_on_log_to_table_retry_Qs, :log_to_table_update )
+      launch_storage_recovery_threads( @@failed_on_log_to_table_retry_Qs, :log_to_table_update, :io_failure )
 
     end
 
@@ -55,16 +55,16 @@ class LogStash::Outputs::Msai
       @@closing
     end
 
-    def self.launch_endpoint_recovery_thread( method )
+    def self.launch_endpoint_recovery_thread
       @@failed_on_notification_endpoint_retry_Q = Queue.new
-      recovery_thread( Blob.new, @@failed_on_notification_endpoint_retry_Q, method )
+      storage_recovery_thread( nil, @@failed_on_notification_endpoint_retry_Q, :notify, :io_failure )
     end
 
-    def self.launch_storage_recovery_threads ( queues, method )
+    def self.launch_storage_recovery_threads ( queues, method, failure_reason )
       @@configuration[:storage_account_name_key].each do |storage_account_name, storage_account_keys|
         queues[storage_account_name] = Queue.new
         # a threads, per storage  account name
-        recovery_thread( storage_account_name, queues[storage_account_name], method )
+        storage_recovery_thread( storage_account_name, queues[storage_account_name], method, failure_reason )
       end
     end
 
@@ -141,24 +141,29 @@ class LogStash::Outputs::Msai
       end
     end
 
-    def self.state_on? ( account_or_blob = nil )
-      if account_or_blob.is_a?( Blob )
-        @@endpoint_state_on ||= account_or_blob.test_notification_endpoint( @@configuration[:storage_account_name_key][0][0] )
-      elsif account_or_blob
-        Clients.instance.storage_account_state_on?( account_or_blob )
+    def self.state_on? ( storage_account_name, blob, failure_reason )
+      if blob
+        if :io_failure == failure_reason
+          @@endpoint_state_on ||= blob.test_notification_endpoint( @@configuration[:storage_account_name_key][0][0] )
+        else
+          Clients.instance.storage_account_state_on?( storage_account_name )
+        end
+      elsif storage_account_name
+        Clients.instance.storage_account_state_on?( storage_account_name )
       else
         Clients.instance.storage_account_state_on?
       end
     end
 
-    def self.recovery_thread( storage_account_name, queue, method )
+    def self.storage_recovery_thread( storage_account_name, queue, method, failure_reason )
       # a threads, per storage  account name, that retries failed blob commits / notification / table updates
-      Thread.new( storage_account_name, queue, method ) do |account_name_or_endpoint_blob, q, method|
+      Thread.new( storage_account_name, queue, method, failure_reason ) do |storage_account_name, queue, method, failure_reason|
+        blob = Blob.new if :notify == method
         semaphore = Mutex.new
         action = {:method => method, :semaphore => semaphore, :counter => 0 }
         loop do
-          tuple ||= q.pop
-          until state_on?( account_name_or_endpoint_blob ) do sleep( 1 ) end
+          tuple ||= queue.pop
+          until state_on?( storage_account_name, blob, failure_reason ) do sleep( 1 ) end
 
           not_busy = nil
           semaphore.synchronize {
@@ -180,9 +185,6 @@ class LogStash::Outputs::Msai
       end
     end
 
-    def async_action ( action, tuple )
-    end
-
 
     def initialize ( channel = nil, id = nil , no_queue = false )
       @uploaded_block_ids = [  ]
@@ -190,6 +192,7 @@ class LogStash::Outputs::Msai
       @uploaded_bytesize = 0
       @uploaded_events_count = 0
       @max_tries = @@io_max_retries + 1
+      @sub_state = :none
 
       if channel
         @id = id
@@ -303,7 +306,7 @@ class LogStash::Outputs::Msai
         eval( options[:uploaded_block_ids.to_s] ), eval( options[:uploaded_block_numbers.to_s] ), 
         options[:uploaded_events_count.to_s] || 0, options[:uploaded_bytesize.to_s] || 0, options[:oldest_event_time.to_s] || Time.now.utc,
         options[:event_format_ext.to_s], options[:blob_max_delay.to_s] || 0,
-        options[:log_state.to_s].to_sym
+        options[:log_state.to_s].to_sym, (options[:sub_state.to_s] || :none).to_sym
       ]
     end
 
@@ -313,7 +316,7 @@ class LogStash::Outputs::Msai
         @uploaded_block_ids, @uploaded_block_numbers, 
         @uploaded_events_count, @uploaded_bytesize, @oldest_event_time,
         @event_format_ext, @blob_max_delay,
-        @log_state
+        @log_state, @sub_state
       ]
     end
 
@@ -323,7 +326,7 @@ class LogStash::Outputs::Msai
         @uploaded_block_ids, @uploaded_block_numbers, 
         @uploaded_events_count, @uploaded_bytesize, @oldest_event_time,
         @event_format_ext, @blob_max_delay,
-        @log_state) = tuple
+        @log_state, @sub_state) = tuple
     end
 
     def state_to_table_entity
@@ -331,7 +334,7 @@ class LogStash::Outputs::Msai
         :storage_account_name => @storage_account_name, :container_name => @container_name, :blob_name => @blob_name, 
         :uploaded_block_ids => @uploaded_block_ids.to_s, :uploaded_block_numbers => @uploaded_block_numbers.to_s, 
         :uploaded_events_count => @uploaded_events_count, :uploaded_bytesize => @uploaded_bytesize, :oldest_event_time => @oldest_event_time,
-        :log_state => @log_state
+        :log_state => @log_state, :sub_state => @sub_state
       }
     end
 
@@ -385,13 +388,22 @@ class LogStash::Outputs::Msai
 
     def notify_recover
       proc do |reason, e|
-        if :invalid_storage_key_notify == reason
+        if :notify_failed_blob_not_accessible == reason
+          @sub_state = reason
           @@failed_on_notify_retry_Qs[@storage_account_name] << state_to_tuple
         elsif :invalid_intrumentation_key == reason || :invalid_table_id == reason
+          @sub_state = reason
           Channels.instance.channel( @intrumentation_key, @table_id ).failed_on_notify_retry_Q << state_to_tuple
+
         else
           @@endpoint_state_on = false
-          @@failed_on_notification_endpoint_retry_Q << state_to_tuple
+          if :notify_failed_blob_not_accessible == @sub_state
+            @@failed_on_notify_retry_Qs[@storage_account_name] << state_to_tuple
+          elsif :invalid_intrumentation_key == @sub_state || :invalid_table_id == @sub_state
+            Channels.instance.channel( @intrumentation_key, @table_id ).failed_on_notify_retry_Q << state_to_tuple
+          else
+            @@failed_on_notification_endpoint_retry_Q << state_to_tuple
+          end
         end
       end
     end
@@ -399,7 +411,8 @@ class LogStash::Outputs::Msai
     def notify ( tuple = nil )
       tuple_to_state( tuple ) if tuple
       @action = :notify
-      @recoverable = [ :invalid_storage_key_notify, :io_failure, :service_unavailable ]
+      @force_client = true # to enable get a client even if all storage_accounts marked dead
+      @recoverable = [ :notify_failed_blob_not_accessible, :io_failure, :service_unavailable ]
       success = storage_io_block( notify_recover ) {
         set_blob_sas_url
         payload = create_payload
@@ -483,8 +496,8 @@ class LogStash::Outputs::Msai
         else
           @client.tableClient.delete_entity( @@state_table_name, "#{@@configuration[:blob_prefix]}-#{@log_state}", @blob_name ) if :create_resource != @recovery
         end
-        @@logger.info { "Note: delete previous entity failed, already deleted, log_state: #{@log_state}" } if :create_resource == @recovery
-        @@logger.info { "Note: insert entity failed, already exist, log_state: #{@log_state}" } if :entity_exist == @recovery
+        @@logger.info { "Note: delete previous entity failed, already deleted, #{@info}, log_state: #{@log_state}" } if :create_resource == @recovery
+        @@logger.info { "Note: insert entity failed, already exist, #{@info}, log_state: #{@log_state}" } if :entity_exist == @recovery
       }
       @@failed_on_notification_endpoint_retry_Q << state_to_tuple if success && :committed == @log_state
     end
@@ -563,11 +576,11 @@ class LogStash::Outputs::Msai
     end
 
     def upload ( block, to_commit = nil )
+      @storage_account_name = nil if @uploaded_block_ids.empty?
       @block_to_upload = block
       block = nil # remove reference for GC
       exclude_storage_account_names = [  ]
       begin
-        exclude_storage_account_names << @storage_account_name if @storage_account_name
         if @uploaded_block_ids.empty?
           @log_state = :uploading
           @uploaded_block_numbers = [  ]
@@ -576,7 +589,8 @@ class LogStash::Outputs::Msai
           @oldest_event_time = nil
 
           # remove record of previous upload that failed
-          unless exclude_storage_account_names.empty?
+          if @storage_account_name
+            exclude_storage_account_names << @storage_account_name
             @@failed_on_log_to_table_retry_Qs[@storage_account_name] << state_to_tuple
           end
           set_conatainer_and_blob_names
@@ -726,7 +740,7 @@ class LogStash::Outputs::Msai
           @recovery = :invalid_storage_key
 
         elsif 403 == e.status_code  && "Unknown" == e.type && e.description.include?("Blob does not exist or not accessible.")
-          @recovery = :invalid_storage_key_notify
+          @recovery = :notify_failed_blob_not_accessible
 
         elsif 400 == e.status_code  && "Unknown" == e.type && e.description.include?("Invalid instrumentation key")
           @recovery = :invalid_intrumentation_key
@@ -773,7 +787,7 @@ class LogStash::Outputs::Msai
           # ignore log error
           # @@logger.error { "Failed to #{@info} ;( recovery: continue, error: #{e.inspect}" }
 
-        when :invalid_storage_key, :invalid_storage_key_notify
+        when :invalid_storage_key, :notify_failed_blob_not_accessible
           if @client.switch_storage_account_key!
             @@logger.error { "Failed to #{@info} ;( recovery: switched to secondary storage key, error: #{e.inspect}" }
           else

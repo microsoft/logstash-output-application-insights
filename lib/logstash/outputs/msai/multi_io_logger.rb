@@ -20,7 +20,7 @@ class LogStash::Outputs::Msai
           file_renamed = File.rename( "#{name}.20160714", name )
           logger = Logger.new( name, shift_age, shift_size )
         rescue
-          puts "logger do not support log shifting on this OS"
+          puts "--- logger do not support log shifting on this OS"
           logger = Logger.new( name )
         end
 
