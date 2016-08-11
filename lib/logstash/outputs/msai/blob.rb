@@ -1,4 +1,18 @@
 # encoding: utf-8
+#-------------------------------------------------------------------------
+# # Copyright (c) Microsoft and contributors. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#--------------------------------------------------------------------------
 
 class LogStash::Outputs::Msai
   class Blob
@@ -752,9 +766,13 @@ class LogStash::Outputs::Msai
           @recovery = :service_unavailable
         elsif 404 == e.status_code
           @recovery = :create_resource
+        elsif 403 == e.status_code
+          # todo, came from updating the log_table, how to hnadle this
+          @recovery = :access_denied
         else
           puts "\n>>>> HTTP error - #{e.inspect} <<<<\n"
-          raise e
+          @recovery = :http_unknown
+          raise e if  @@configuration[:stop_on_unknown_io_errors]
         end
 
       # communication error
@@ -765,7 +783,7 @@ class LogStash::Outputs::Msai
       elsif e.is_a?( IOError )
         @recovery = :io_failure
 
-      # all storage accounts are dead, couldn't get client'
+      # all storage accounts are dead, couldn't get client (internal exception)
       elsif e.is_a?( StorageAccountsOffError )
         @recovery = :io_all_dead
 

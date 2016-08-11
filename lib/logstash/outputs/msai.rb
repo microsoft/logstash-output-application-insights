@@ -1,7 +1,22 @@
 # encoding: utf-8
+#-------------------------------------------------------------------------
+# # Copyright (c) Microsoft and contributors. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#--------------------------------------------------------------------------
 
 require "logstash/outputs/base"
 require "logstash/namespace"
+require 'logstash-core/version'
 
 require "stud/interval"
 
@@ -24,11 +39,11 @@ require "concurrent" # for atomic and thread safe operations
 require "logger"
 require "csv"
 
-require "singleton"
+require "application_insights"
 
 # An msai output that does nothing.
 class LogStash::Outputs::Msai < LogStash::Outputs::Base
-
+  require "logstash/outputs/msai/version"
   require "logstash/outputs/msai/utils" 
   require "logstash/outputs/msai/constants" 
   require "logstash/outputs/msai/config" 
@@ -45,6 +60,7 @@ class LogStash::Outputs::Msai < LogStash::Outputs::Base
   autoload :State, "logstash/outputs/msai/state"
   autoload :Flow_control, "logstash/outputs/msai/flow_control"
   autoload :Shutdown, "logstash/outputs/msai/shutdown"
+  autoload :Telemetry, "logstash/outputs/msai/telemetry"
 
   require "logstash/outputs/msai/notify" 
   require "logstash/outputs/msai/exceptions" 
@@ -53,7 +69,7 @@ class LogStash::Outputs::Msai < LogStash::Outputs::Base
 
   config_name "msai"
     
-  default :codec, "json_lines" 
+  # default :codec, "json_lines" 
   
   # Array of pairs, storage_account_name and an array of acces_keys 
   # examples [ account1, key1 ]
@@ -212,6 +228,14 @@ class LogStash::Outputs::Msai < LogStash::Outputs::Base
   # File path of the CA file if having issue with SSL
   config :ca_file, :validate => :string
 
+
+  # When set to true, telemetry about the plugin, won't be sent to Application Insights
+  config :disable_telemetry, :validate => :boolean
+
+  # When set to true, storage cleanup won't be done by the plugin (should be done by some other means or by another Logstash process with this flag enabled)
+  config :disable_cleanup, :validate => :boolean
+
+
   # Advanced, internal, should not be set, the default is false
   # When set to true, notification is not sent to application insights, but behaves as if notified
   config :disable_notification, :validate => :boolean
@@ -219,6 +243,10 @@ class LogStash::Outputs::Msai < LogStash::Outputs::Base
   # Advanced, internal, should not be set, the default is false
   # When set to true, events are not uploaded, and blob not commited, but behaves as if uploaded and notified
   config :disable_blob_upload, :validate => :boolean
+
+  # Advanced, internal, should not be set, the default is false
+  # When set to true, process will stop if an unknown IO error is found
+  config :stop_on_unknown_io_errors, :validate => :boolean
 
   # Advanced, internal, should not be set, the default is Application Insights production endpoint
   # when set notification are sent to an alternative endpoint, used for internal testing
@@ -242,6 +270,9 @@ class LogStash::Outputs::Msai < LogStash::Outputs::Base
 
     @private_logger.info { "configuration: #{configuration}" }
 
+    @telemetry = Telemetry.instance
+    configuration[:telemetry_channel] = @telemetry.telemetry_channel
+
     Timer.config( configuration )
     Blob.config( configuration )
 
@@ -252,12 +283,18 @@ class LogStash::Outputs::Msai < LogStash::Outputs::Base
     @storage_cleanup = Storage_cleanup.start
 
     @private_logger.info { "plugin registered" }
+
+    # @codec.on_event do |event, encoded_event|
+    #   @channels.receive( event, encoded_event )
+    # end
+
     return "ok\n"
   end # def register
   
 
   def receive ( event )
-    @channels.receive( event )
+    # @codec.encode( event )
+    @channels.receive( event, nil )
     return "ok\n"
   end
 

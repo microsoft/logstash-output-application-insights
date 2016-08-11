@@ -1,4 +1,18 @@
 # encoding: utf-8
+#-------------------------------------------------------------------------
+# # Copyright (c) Microsoft and contributors. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#--------------------------------------------------------------------------
 
 class LogStash::Outputs::Msai
   class Channels
@@ -25,20 +39,19 @@ class LogStash::Outputs::Msai
     end
 
 
-    def receive ( event )
+    def receive ( event, encoded_event )
       if LogStash::SHUTDOWN == event
         @logger.info { "received a LogStash::SHUTDOWN event, start shutdown" }
 
       elsif LogStash::FLUSH == event
         @logger.info { "received a LogStash::FLUSH event, start shutdown" }
-
-      else
-        table_id = event[METADATA_FIELD_TABLE_ID] || event[FIELD_TABLE_ID] || @default_table_id
-        intrumentation_key = event[METADATA_FIELD_INSTRUMENTATION_KEY] || event[FIELD_INSTRUMENTATION_KEY] || ( @table_ids_properties[table_id][TABLE_ID_PROPERTY_INSTRUMENTATION_KEY] if @table_ids_properties[table_id] ) || @default_intrumentation_key
-
-        @flow_control.pass_or_wait
-        channel( intrumentation_key, table_id ) << event
       end
+
+      table_id = event[METADATA_FIELD_TABLE_ID] || event[FIELD_TABLE_ID] || @default_table_id
+      intrumentation_key = event[METADATA_FIELD_INSTRUMENTATION_KEY] || event[FIELD_INSTRUMENTATION_KEY] || ( @table_ids_properties[table_id][TABLE_ID_PROPERTY_INSTRUMENTATION_KEY] if @table_ids_properties[table_id] ) || @default_intrumentation_key
+
+      @flow_control.pass_or_wait
+      channel( intrumentation_key, table_id ) << event
     end
 
 
@@ -62,8 +75,7 @@ class LogStash::Outputs::Msai
           sleep( 0.5 )
           channels = @create_semaphore.synchronize { @channels.dup }
           channels.each do |channel|
-            block_list = channel.collect_blocks
-            channel.enqueue_blocks( block_list )
+            channel.flush
           end
         end
       end

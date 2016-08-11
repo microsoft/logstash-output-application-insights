@@ -2,15 +2,16 @@ PATH
   remote: .
   specs:
     logstash-output-msai (0.1.0)
+      application_insights (>= 0.5.3)
       azure-core
-      azure-storage
-      logstash-codec-plain
+      azure-storage (= 0.10.1.preview)
       logstash-core (>= 2.0.0, < 3.0.0)
 
 GEM
   remote: https://rubygems.org/
   specs:
     addressable (2.4.0)
+    application_insights (0.5.3)
     azure-core (0.1.2)
       faraday (~> 0.9)
       faraday_middleware (~> 0.10)
@@ -46,8 +47,6 @@ GEM
     jruby-openssl (0.9.13-java)
     json (1.8.3-java)
     kramdown (1.11.1)
-    logstash-codec-plain (2.0.4)
-      logstash-core-plugin-api (~> 1.0)
     logstash-core (2.3.2-java)
       cabin (~> 0.8.0)
       clamp (~> 0.6.5)
@@ -65,8 +64,6 @@ GEM
       thread_safe (~> 0.3.5)
       treetop (< 1.5.0)
     logstash-core-event (2.3.2-java)
-    logstash-core-plugin-api (1.16.0-java)
-      logstash-core (>= 2.0.0, <= 2.3.3.snapshot1)
     logstash-devutils (0.0.22-java)
       fivemat
       gem_publisher

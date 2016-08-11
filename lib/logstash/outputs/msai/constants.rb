@@ -1,4 +1,18 @@
 # encoding: utf-8
+#-------------------------------------------------------------------------
+# # Copyright (c) Microsoft and contributors. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#--------------------------------------------------------------------------
 
 class LogStash::Outputs::Msai
 
@@ -20,6 +34,10 @@ class LogStash::Outputs::Msai
 
       :disable_notification => @disable_notification || DEFAULT_DISABLE_NOTIFICATION,
       :disable_blob_upload => @disable_blob_upload || DEFAULT_DISABLE_BLOB_UPLOAD,
+      :stop_on_unknown_io_errors => @stop_on_unknown_io_errors || DEFAULT_STOP_ON_UNKNOWN_IO_ERRORS,
+
+      :disable_telemetry => @disable_telemetry || DEFAULT_DISABLE_TELEMETRY,
+      :disable_cleanup => @disable_cleanup || DEFAULT_DISABLE_CLEANUP,
 
       :intrumentation_key => @intrumentation_key || DEFAULT_INSTRUMENTATION_KEY,
       :table_id => @table_id || DEFAULT_TABLE_ID,
@@ -50,7 +68,7 @@ class LogStash::Outputs::Msai
     }
   end
 
-  VALID_UNDEFINDED = [ :disable_notification, :disable_blob_upload, :ca_file, :storage_account_name_key ]
+  VALID_UNDEFINDED = [ :disable_notification, :disable_blob_upload, :stop_on_unknown_io_errors, :disable_telemetry, :disable_cleanup, :ca_file, :storage_account_name_key ]
 
   GUID_NULL =       "00000000-0000-0000-0000-000000000000"
   INSTRUMENTATION_KEY_TEMPLATE =   "KKKKKKKK-KKKK-KKKK-KKKK-KKKKKKKKKKKK"
@@ -161,6 +179,9 @@ class LogStash::Outputs::Msai
   DEFAULT_NOTIFICATION_VERSION = 1
   DEFAULT_DISABLE_NOTIFICATION = false
   DEFAULT_DISABLE_BLOB_UPLOAD = false
+  DEFAULT_STOP_ON_UNKNOWN_IO_ERRORS = false
+  DEFAULT_DISABLE_TELEMETRY = false
+  DEFAULT_DISABLE_CLEANUP = false
   DEFAULT_LOGGER_FILES = [ "logstash-output-msai.log" ]
   DEFAULT_LOG_LEVEL = "INFO"
   DEFAULT_LOGGER_PROGNAME = "MS-AI"

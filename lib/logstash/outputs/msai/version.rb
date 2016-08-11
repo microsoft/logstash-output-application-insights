@@ -14,34 +14,6 @@
 # limitations under the License.
 #--------------------------------------------------------------------------
 
-class LogStash::Outputs::Msai
-
-  # exception that are handled internally and do NOT cause process to end
-  class BlockOverflowError < StandardError
-  end
-
-  class BlockTooSmallError < StandardError
-  end
-
-  class NoChannelError < StandardError
-  end
-
-  class ChannelExistError < StandardError
-  end
-
-  class StorageAccountsOffError < StandardError
-  end
-
-  class UploadRetryError < StandardError
-  end
-
-  # exception that cause process to end
-  # LogStash::ConfigurationError, "ssl_truststore_location must be set when SSL is enabled"
-  # class ConfigurationError < StandardError
-  class ConfigurationError < LogStash::ConfigurationError
-  end
-
-  class UnexpectedBranchError < StandardError
-  end
-
-end
+# class LogStash::Outputs::Msai
+  APPLICATION_INSIGHTS_VERSION = "0.1.0"
+# end
