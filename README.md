@@ -6,7 +6,7 @@ Send diagnostic data to Microsoft Application Analytics.
 ## Installation
 You can install this plugin using the Logstash "plugin" or "logstash-plugin" (for newer versions of Logstash) command:
 ```sh
-logstash-plugin install logstash-input-msai
+logstash-plugin install logstash-output-application-insights
 ```
 For more information, see Logstash reference [Working with plugins](https://www.elastic.co/guide/en/logstash/current/working-with-plugins.html).
 
@@ -28,7 +28,7 @@ The blob container name.
 ```
 output
 {
-    msai
+    application_insights
     {
         storage_account_name => "mystorageaccount"
         storage_access_key => "VGhpcyBpcyBhIGZha2Uga2V5Lg=="
