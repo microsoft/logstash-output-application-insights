@@ -788,6 +788,10 @@ class LogStash::Outputs::Application_insights
         sleep( 1 )
         @recovery = :io_failure
 
+      elsif e.is_a?( NameError ) && e.message.include?( "uninitialized constant Azure::Storage::Auth::SharedAccessSignature" )
+        sleep( 1 )
+        @recovery = :io_failure
+
       else
         # UNKNOWN error - #<NameError: uninitialized constant Azure::Core::Auth::Signer::OpenSSL>
         puts "\n>>>> UNKNOWN error - #{e.inspect} <<<<\n"

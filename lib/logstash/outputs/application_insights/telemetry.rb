@@ -76,6 +76,10 @@ class LogStash::Outputs::Application_insights
       @telemetry_channel.track_request( id, start_time, duration, response_code, success, options ) unless @disable_telemetry
     end
 
+    def flush
+      @telemetry_channel.flush
+    end
+
     public
 
     @@instance = Telemetry.new

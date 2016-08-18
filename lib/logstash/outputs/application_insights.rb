@@ -298,6 +298,7 @@ class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
     #   @channels.receive( event, encoded_event )
     # end
 
+    Telemetry.instance.track_event("register", {:properties => configuration})
     return "ok\n"
   end # def register
   
@@ -309,6 +310,8 @@ class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
   end
 
   def close
+    Telemetry.instance.track_event( "close" )
+    Telemetry.instance.flush
     @shutdown.submit
   end
 
