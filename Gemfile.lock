@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    logstash-output-msai (0.1.0)
+    logstash-output-application-insights (0.1.0)
       application_insights (>= 0.5.3)
       azure-core
       azure-storage (= 0.10.1.preview)
@@ -122,7 +122,7 @@ PLATFORMS
 
 DEPENDENCIES
   logstash-devutils
-  logstash-output-msai!
+  logstash-output-application-insights!
 
 BUNDLED WITH
    1.12.5

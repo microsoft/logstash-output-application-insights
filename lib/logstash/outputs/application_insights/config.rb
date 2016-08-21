@@ -217,10 +217,10 @@ class LogStash::Outputs::Application_insights
 
         when :intrumentation_key
           properties[:intrumentation_key] = validate_and_adjust_guid( info, property_value )
-        when :ext
+        when :blob_serialization
           property_value = property_value.downcase
           raise ConfigurationError, "#{info}, can be set to only one of the following values: #{VALID_EXT_EVENT_FORMAT}" unless VALID_EXT_EVENT_FORMAT.include?( property_value )
-          properties[:ext] = validate_and_adjust_ext( info ,property_value, configuration[:azure_storage_blob_prefix] ) # be careful depends on order
+          properties[:blob_serialization] = validate_and_adjust_ext( info ,property_value, configuration[:azure_storage_blob_prefix] ) # be careful depends on order
         when :csv_default_value
           properties[:csv_default_value] = validate_and_adjust( info, property_value, String )
         when :csv_separator
@@ -229,37 +229,42 @@ class LogStash::Outputs::Application_insights
           properties[:blob_max_delay] = validate_and_adjust_number( info, property_value, MIN_BLOB_MAX_DELAY, MAX_BLOB_MAX_DELAY )
         when :event_separator
           properties[:event_separator] = validate_and_adjust( info, property_value, String )
-        when :data_field
-          properties[:data_field] = validate_and_adjust( info, property_value, String )
+        when :serialized_event_field
+          properties[:serialized_event_field] = ( property_value.nil? ? nil : validate_and_adjust( info, property_value, String ) )
         when :case_insensitive_columns
           properties[:case_insensitive_columns] = validate_and_adjust_boolean( info, property_value )
         when :table_columns
-          table_columns = property_value
-          table_columns = [ table_columns ] if table_columns.is_a?( String )
-          table_columns = validate_and_adjust( info, table_columns, Array)
-          new_table_columns = []
-          index = 0
-          table_columns.each do |column|
-            new_column = {}
+          if property_value.nil?
+            properties[:table_columns] = property_value
+          else
+            table_columns = property_value
+            table_columns = [ table_columns ] if table_columns.is_a?( String )
+            table_columns = validate_and_adjust( info, table_columns, Array)
+            new_table_columns = []
+            index = 0
+            table_columns.each do |column|
+              new_column = {}
 
-            column = { COLUMN_PROPERTY_NAME => column } if column.is_a?( String )
-            column = validate_and_adjust( "#{info}[#{index}]", column, Hash, :disallow_empty )
-            raise ConfigurationError, "#{info}[#{index}][#{COLUMN_PROPERTY_NAME}] must be defined" unless column[COLUMN_PROPERTY_NAME]
-            new_column[:name] = validate_and_adjust( "#{info}[#{index}][#{COLUMN_PROPERTY_NAME}]", column[COLUMN_PROPERTY_NAME], String )
+              column = { COLUMN_PROPERTY_NAME => column } if column.is_a?( String )
+              column = validate_and_adjust( "#{info}[#{index}]", column, Hash, :disallow_empty )
+              raise ConfigurationError, "#{info}[#{index}][#{COLUMN_PROPERTY_NAME}] must be defined" unless column[COLUMN_PROPERTY_NAME]
+              new_column[:name] = validate_and_adjust( "#{info}[#{index}][#{COLUMN_PROPERTY_NAME}]", column[COLUMN_PROPERTY_NAME], String )
 
-            if column[COLUMN_PROPERTY_DEFAULT]
-              new_column[:default] = validate_and_adjust( "#{info}[#{index}][#{COLUMN_PROPERTY_DEFAULT}]", column[COLUMN_PROPERTY_DEFAULT], String )
+              if column[COLUMN_PROPERTY_DEFAULT]
+                new_column[:default] = validate_and_adjust( "#{info}[#{index}][#{COLUMN_PROPERTY_DEFAULT}]", column[COLUMN_PROPERTY_DEFAULT], String )
+              end
+
+              if column[COLUMN_PROPERTY_TYPE]
+                new_column[:type] = validate_and_adjust( "#{info}[#{index}][#{COLUMN_PROPERTY_TYPE}]", column[COLUMN_PROPERTY_TYPE], String ).downcase
+                raise ConfigurationError, "#{info}[#{index}][#{COLUMN_PROPERTY_TYPE}] can be only one of the following values: #{VALID_FIELDS_MAP_TYPES}" unless VALID_FIELDS_MAP_TYPES.any? {|type| type == new_column[:type]}
+                new_column[:type] = new_column[:type].to_sym
+              end
+              new_table_columns << new_column
+              index += 1
             end
-
-            if column[COLUMN_PROPERTY_TYPE]
-              new_column[:type] = validate_and_adjust( "#{info}[#{index}][#{COLUMN_PROPERTY_TYPE}]", column[COLUMN_PROPERTY_TYPE], String ).downcase
-              raise ConfigurationError, "#{info}[#{index}][#{COLUMN_PROPERTY_TYPE}] can be only one of the following values: #{VALID_FIELDS_MAP_TYPES}" unless VALID_FIELDS_MAP_TYPES.any? {|type| type == new_column[:type]}
-              new_column[:type] = new_column[:type].to_sym
-            end
-            new_table_columns << new_column
-            index += 1
+            properties[:table_columns] = new_table_columns
           end
-          properties[:table_columns] = new_table_columns
+
         else
         end
       }

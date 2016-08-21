@@ -18,37 +18,23 @@ class LogStash::Outputs::Application_insights
 
   def default_configuration
     {
-      :notification_endpoint => @notification_endpoint || DEFAULT_NOTIFICATION_ENDPOINT,
       :notification_version => @notification_version || DEFAULT_NOTIFICATION_VERSION,
+      :event_separator => @event_separator || DEFAULT_EVENT_SEPARATOR,
 
+      :notification_endpoint => @notification_endpoint || DEFAULT_NOTIFICATION_ENDPOINT,
       :azure_storage_blob_prefix => @azure_storage_blob_prefix || DEFAULT_AZURE_STORAGE_BLOB_PREFIX || Utils.to_storage_name( Socket.gethostname.strip ) || "",
       :azure_storage_container_prefix => @azure_storage_container_prefix || DEFAULT_AZURE_STORAGE_CONTAINER_PREFIX || Utils.to_storage_name( Socket.gethostname.strip ) || "",
       :azure_storage_table_prefix => @azure_storage_table_prefix || DEFAULT_AZURE_STORAGE_TABLE_PREFIX || Utils.to_storage_name( Socket.gethostname.strip ) || "",
-
       :storage_account_name_key => @storage_account_name_key || [  ],
-
-      :event_separator => @event_separator || DEFAULT_EVENT_SEPARATOR,
-      :csv_separator => @csv_separator || DEFAULT_CSV_SEPARATOR,
-      :csv_default_value => @csv_default_value || DEFAULT_CSV_DEFAULT_VALUE,
-      :tables => @tables || {  },
-
       :disable_notification => @disable_notification || DEFAULT_DISABLE_NOTIFICATION,
       :disable_blob_upload => @disable_blob_upload || DEFAULT_DISABLE_BLOB_UPLOAD,
       :stop_on_unknown_io_errors => @stop_on_unknown_io_errors || DEFAULT_STOP_ON_UNKNOWN_IO_ERRORS,
       :delete_not_notified_blobs => @delete_not_notified_blobs || DEFAULT_DELETE_NOT_NOTIFIED_BLOBS,
       :save_notified_blobs_records => @save_notified_blobs_records || DEFAULT_SAVE_NOTIFIED_BLOBS_RECORDS,
-
       :disable_telemetry => @disable_telemetry || DEFAULT_DISABLE_TELEMETRY,
       :disable_cleanup => @disable_cleanup || DEFAULT_DISABLE_CLEANUP,
-
-      :intrumentation_key => @intrumentation_key || DEFAULT_INSTRUMENTATION_KEY,
-      :table_id => @table_id || DEFAULT_TABLE_ID,
-      :table_columns => @table_columns || [  ],
-      :case_insensitive_columns => @case_insensitive_columns || DEFAULT_CASE_INSENSITIVE,
-
       :blob_max_bytesize => @blob_max_bytesize || DEFAULT_BLOB_MAX_BYTESIZE,
       :blob_max_events => @blob_max_events || DEFAULT_BLOB_MAX_EVENTS,
-      :blob_max_delay => @blob_max_delay || DEFAULT_BLOB_MAX_DELAY,
       :blob_retention_time => @blob_retention_time || DEFAULT_BLOB_RETENTION_TIME,
       :blob_access_expiry_time => @blob_access_expiry_time || DEFAULT_BLOB_ACCESS_EXPIRY_TIME,
 
@@ -66,16 +52,27 @@ class LogStash::Outputs::Application_insights
       :flow_control_resume_bytes => @flow_control_resume_bytes || DEFAULT_FLOW_CONTROL_RESUME_BYTES,
       :flow_control_delay => @flow_control_delay || DEFAULT_FLOW_CONTROL_DELAY,
 
-      :ca_file => @ca_file || "", 
+      :ca_file => @ca_file || "",
 
-      :failed_on_action_nonrecoverable_Q => Queue.new
+      :tables => @tables || {  },
+      :table_id => @table_id || DEFAULT_TABLE_ID,
+      :intrumentation_key => @intrumentation_key || DEFAULT_INSTRUMENTATION_KEY,
+      :table_columns => @table_columns,
+      :case_insensitive_columns => @case_insensitive_columns || DEFAULT_CASE_INSENSITIVE,
+      :serialized_event_field => @serialized_event_field,
+      :blob_max_delay => @blob_max_delay || DEFAULT_BLOB_MAX_DELAY,
+      :blob_serialization => @blob_serialization || DEFAULT_BLOB_SERIALIZATION,
+      :csv_separator => @csv_separator || DEFAULT_CSV_SEPARATOR,
+      :csv_default_value => @csv_default_value || DEFAULT_CSV_DEFAULT_VALUE,
+
     }
   end
 
   BOOLEAN_PROPERTIES = [  :disable_notification, :disable_blob_upload, 
                           :stop_on_unknown_io_errors, :disable_telemetry, 
                           :disable_cleanup, :delete_not_notified_blobs, 
-                          :save_notified_blobs_records, :case_insensitive_columns ]
+                          :save_notified_blobs_records, :case_insensitive_columns,
+                          :table_columns, :serialized_event_field ]
 
   GUID_NULL =                    "00000000-0000-0000-0000-000000000000"
   INSTRUMENTATION_KEY_TEMPLATE = "KKKKKKKK-KKKK-KKKK-KKKK-KKKKKKKKKKKK"
@@ -166,8 +163,11 @@ class LogStash::Outputs::Application_insights
   DEFAULT_AZURE_STORAGE_BLOB_PREFIX = nil
   DEFAULT_AZURE_STORAGE_CONTAINER_PREFIX = nil
   DEFAULT_AZURE_STORAGE_TABLE_PREFIX = nil
-  DEFAULT_JSON_EXT = "json"
-  DEFAULT_CSV_EXT = "csv"
+  DEFAULT_JSON_EXT = EXT_EVENT_FORMAT_JSON
+  DEFAULT_CSV_EXT = EXT_EVENT_FORMAT_CSV
+
+
+  DEFAULT_BLOB_SERIALIZATION = EXT_EVENT_FORMAT_JSON
 
   DEFAULT_BLOB_MAX_BYTESIZE = 1 * 1024 * 1024 * 1024
   DEFAULT_BLOB_MAX_EVENTS = 256 * 1024                 # 256 Kilo events
@@ -185,12 +185,15 @@ class LogStash::Outputs::Application_insights
   DEFAULT_DISABLE_CLEANUP = false
   DEFAULT_DELETE_NOT_NOTIFIED_BLOBS = false
   DEFAULT_SAVE_NOTIFIED_BLOBS_RECORDS = false
+  
   DEFAULT_CASE_INSENSITIVE = false
+
   DEFAULT_LOGGER_FILES = [ "logstash-output-application-insights.log" ]
   DEFAULT_LOG_LEVEL = "INFO"
   DEFAULT_LOGGER_PROGNAME = "AI"
   DEFAULT_LOGGER_SHIFT_AGE = "daily"                  # daily back retension
   DEFAULT_LOGGER_SHIFT_SIZE = 1024 * 1024             # in bytes - one Mega bytes
+  
   DEFAULT_IO_RETRY_DELAY = 10                         # in seconds
   DEFAULT_IO_MAX_RETRIES = 2
 

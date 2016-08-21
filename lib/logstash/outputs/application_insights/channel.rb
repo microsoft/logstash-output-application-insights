@@ -35,7 +35,6 @@ class LogStash::Outputs::Application_insights
       @logger.debug { "Create a new channel, intrumentation_key / table_id : #{intrumentation_key} / #{table_id}" }
       @intrumentation_key = intrumentation_key
       @table_id = table_id
-      set_event_format_ext( configuration )
       set_table_properties( configuration )
       @semaphore = Mutex.new
       @failed_on_upload_retry_Q = Queue.new
@@ -60,10 +59,10 @@ class LogStash::Outputs::Application_insights
     end
 
     def << ( event )
-      if @data_field && event[@data_field]
-        serialized_event = serialize_data_field( event[@data_field] )
+      if @serialized_event_field && event[@serialized_event_field]
+        serialized_event = serialize_serialized_event_field( event[@serialized_event_field] )
       else
-        serialized_event = ( EXT_EVENT_FORMAT_CSV == @event_format_ext ? serialize_to_csv( event ) : serialize_to_json( event ) )
+        serialized_event = ( EXT_EVENT_FORMAT_CSV == @serialization ? serialize_to_csv( event ) : serialize_to_json( event ) )
       end
 
       if serialized_event
@@ -152,20 +151,20 @@ class LogStash::Outputs::Application_insights
     end
 
 
-    def serialize_data_field ( data )
+    def serialize_serialized_event_field ( data )
       serialized_data = nil
       if data.is_a?( String )
         serialized_data = data
-      elsif EXT_EVENT_FORMAT_CSV == @event_format_ext
+      elsif EXT_EVENT_FORMAT_CSV == @serialization
         if data.is_a?( Array )
           serialized_data = data.to_csv( :col_sep => @csv_separator )
         elsif data.is_a?( Hash )
           serialized_data = serialize_to_csv( data )
         end
-      elsif EXT_EVENT_FORMAT_JSON == @event_format_ext
+      elsif EXT_EVENT_FORMAT_JSON == @serialization
         if data.is_a?( Hash )
           serialized_data = serialize_to_json( data )
-        elsif data.is_a?( Array ) && !@table_columns.empty?
+        elsif data.is_a?( Array ) && !@table_columns.nil?
           serialized_data = serialize_to_json( Hash[@table_columns.map {|column| column[:name]}.zip( data )] )
         end
       end
@@ -174,7 +173,7 @@ class LogStash::Outputs::Application_insights
 
 
     def serialize_to_json ( event )
-      return event.to_json unless !@table_columns.empty?
+      return event.to_json unless !@table_columns.nil?
 
       fields = ( @case_insensitive_columns ? Utils.downcase_hash_keys( event.to_hash ) : event )
 
@@ -189,7 +188,7 @@ class LogStash::Outputs::Application_insights
 
 
     def serialize_to_csv ( event )
-      return nil unless !@table_columns.empty?
+      return nil unless !@table_columns.nil?
 
       fields = ( @case_insensitive_columns ? Utils.downcase_hash_keys( event.to_hash ) : event )
 
@@ -218,34 +217,37 @@ class LogStash::Outputs::Application_insights
     def set_table_properties ( configuration )
       table_properties = configuration[:tables][@table_id]
 
-      @blob_max_delay = ( table_properties[:blob_max_delay] if table_properties ) || configuration[:blob_max_delay]
-      @event_separator = ( table_properties[:event_separator] if table_properties ) || configuration[:event_separator]
-
       if table_properties
-        @data_field = table_properties[:data_field]
+        @blob_max_delay = table_properties[:blob_max_delay]
+        @event_separator = table_properties[:event_separator]
+        @serialized_event_field = table_properties[:serialized_event_field]
         @table_columns = table_properties[:table_columns]
+        @serialization = table_properties[:blob_serialization]
+        @case_insensitive_columns = table_properties[:case_insensitive_columns]
         @csv_default_value = table_properties[:csv_default_value]
         @csv_separator = table_properties[:csv_separator]
-        @case_insensitive_columns = table_properties[:case_insensitive_columns]
       end
+      @blob_max_delay ||= configuration[:blob_max_delay]
+      @event_separator ||= configuration[:event_separator]
+      @serialized_event_field ||= configuration[:serialized_event_field]
       @table_columns ||= configuration[:table_columns]
+      @serialization ||= configuration[:blob_serialization]
+      @case_insensitive_columns ||= configuration[:case_insensitive_columns]
       @csv_default_value ||= configuration[:csv_default_value]
       @csv_separator ||= configuration[:csv_separator]
-      @case_insensitive_columns ||= configuration[:case_insensitive_columns]
 
-      # add field_name to each column
-      @table_columns = @table_columns.map do |column|
-        new_column = column.dup
-        new_column[:field_name] = ( @case_insensitive_columns ? new_column[:name].downcase : new_column[:name] )
-        new_column
+      # add field_name to each column, it is required to differentiate between the filed name and the column name
+      unless @table_columns.nil?
+        @table_columns = @table_columns.map do |column|
+          new_column = column.dup
+          new_column[:field_name] = ( @case_insensitive_columns ? new_column[:name].downcase : new_column[:name] )
+          new_column
+        end
       end
 
-    end
+      # in the future, when compression is introduced, the serialization may be different from the extension
+      @event_format_ext = @serialization
 
-
-    def set_event_format_ext ( configuration )
-      table_properties = configuration[:tables][@table_id]
-      @event_format_ext = ( table_properties[:ext] if table_properties ) || EXT_EVENT_FORMAT_JSON
     end
 
   end

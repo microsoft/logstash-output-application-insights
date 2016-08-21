@@ -116,7 +116,7 @@ table_id => "C24394E1-F077-420E-8A25-EF6FDF045938"
 ```
 
 ### table_columns
-Specifies the list of the fields that will be filtered from the event, fields not specified will be ignored. Default all event fields 
+Specifies the list of the fields that will be filtered from the event, fields not specified will be ignored. No Default (event all fields)
 If not specified all fileds in events will be filtered, the order is kept. The order is essential in case of CSV serialization.
 example:
 ```ruby
@@ -156,6 +156,14 @@ example:
 blob_max_delay => 3600
 ```
 
+### blob_serialization
+Specifies the blob serialziation to create. Default "json"
+currently 2 types are supported "csv" and "json""
+example:
+```ruby
+blob_serialization => "json""
+```
+
 ### io_retry_delay
 Interval of time between retries due to IO failures
 example:
@@ -193,21 +201,56 @@ example:
 csv_default_value => "-"
 ```
 
+### serialized_event_field
+Specifies a serialized event field name, that if exist in current event, its value as is will be taken as the serialized event. No Default
+example:
+```ruby
+serialized_event_field => "serializedMessage"
+```
+
+
 ### logger_level
-specifies the log level. valid values are: DEBUG, INFO, WARN, ERROR, FATAL, UNKNOWN
+Specifies the log level. valid values are: DEBUG, INFO, WARN, ERROR, FATAL, UNKNOWN. Default "INFO"
+example:
+```ruby
+logger_level => "INFO"
+```
 
 ### logger_files
-Specifies the list of targets for the log. may include files, devices, "stdout: and "stderr"
+Specifies the list of targets for the log. may include files, devices, "stdout" and "stderr". Default "logstash-output-application-insights.log"
+example:
+```ruby
+csv_default_value => [ "c:/logstash/dev/runtime/log/logstash-output-application-insights.log", "stdout" ]
+```
 
-### logger_shift_progname
-Advanced, internal, should not be set, the default is AI, 
-Specifies the program name that will displayed in each log record
+### logger_progname
+Specifies the program name that will displayed in each log record. Default "AI"
+Should be modified only in case there is another plugin with the same program name
+example:
+```ruby
+logger_progname => "MSAI"
+```
 
 ### logger_shift_size
-Specifies when file logs are shifted. valid values are either an integer or "daily", "weekly" or "monthly"
+Specifies maximum logfile size. No Default (no size limit)
+Only applies when shift age is a number !!!
+Not supported in Windows !!!
+example (1 MB):
+```ruby
+logger_shift_size => 1048576
+```
 
 ### logger_shift_age
-Specifies the shift age of a log
+Specifies Number of old logfiles to keep, or frequency of rotation (daily, weekly or monthly). No default (never)
+Not supported in Windows !!!
+examples:
+```ruby
+logger_shift_age => weekly
+```
+
+```ruby
+logger_shift_age => 5
+```
 
 ### resurrect_delay
 Specifies the time interval, between tests that check whether a stoarge account came back to life, after it stoped responding. Default 10 seconds
@@ -312,47 +355,25 @@ stop_on_unknown_io_errors => true
 Advanced, internal, should not be set, the only current valid value is 1
 
 ### tables
-A hash of table_ids, where each table_id points to a set of properties
-the properties are a hash, where the keys are are the properties
-current supported properties per table_id are:
-intrumentation_key, ext, table_columns, csv_default_value, csv_separator, max_delay, event_separator, data_field
-intrumentation_key, Application Insights Analytics intrumentation_key, will be used in case not specified in any of the event's fields or events's metadata fileds
-data_field, specifies the data field that may contain the full serialized event (either as json or csv), 
-            when specified, the ext property should be set either to csv or to json (json is the default)
-            if event. does not conatin the field, value will be created based on the fileds in the evnt, according to table_columns if configured, or all fileds in event
-            if event contains this filed, and ext is csv
-                 if value is a string, it will be used as is as the serialized event, without validating whether it is a csv string
-                 if value is an array, it will be serialized as an array of csv columns
-                 if value is a hash, it will be serialized based on table_columns to csv columns
-            if event contains this filed, and ext is json
-                 if value is a string, it will be used as is as the serialized event, without validating whether it is a json string
-                 if value is a hash, it will be serialized to json, if fileds_map exit, it will be based on filds_map
-                 if value is an array, it will be zipped with table_columns (if exist) and serialized to json
-ext, blob extension, the only valid values are either csv or json, 
-            should be set whenever the default json is not appropriate (.e, csv)
-max_delay, maximum latency time, in seconds, since the time the event arrived till it should be commited in azure storage, and Application Insights is notified
-event_separator, specifies the string that is used as a separator between events in the blob
-table_columns, specifies the event fields that should be serialized, and their order (order is required for csv)
-         if csv serialization will be used for this table_id
-         each table_columns field is a hash with 3 keys: name, type, and default. Only name is mandatory
-             name - is the name of the event fleld that its value should be mapped to this columns
-             type - is the type of this field: "string", "hash", "array", "number", "json", "boolean", "float", "integer", "dynamic", "datetime", "object"
-             default - is the value to be used for this column, in case the field is missing in the event
-csv_separator, specifies the string that is used as a separator between columns, 
-             can be specified only together with table_columns
-csv_default_value, specifies the string that is used as the value in a csv record, in case the field does not exist in the event
-             can be specified only together with table_columns
-Example json table_id
-  tables => {"a679fbd2-702c-4c46-8548-80082c66ef28" => {"intrumentation_key" => "abee940b-e648-4242-b6b3-f2826667bf96", "max_delay" => 60} }
-Example json table_id, input in data_field
-  {"ab6a3584-aef0-4a82-8725-2f2336e59f3e" => {"data_field" => "message". "ext" => "json"} }
-Example csv table_id, input in data_field
-  {"ab6a3584-aef0-4a82-8725-2f2336e59f3e" => {"data_field" => "csv_message". "ext" => "csv"} }
-Example csv table_id, input in event fields
-  {"ab6a3584-aef0-4a82-8725-2f2336e59f3e" => { "ext" => "csv", "table_columns" => [ {name => "Timestamp" type => datetime }, "Value", "Custom" ] } }
-Example csv table_id, input in event fields
-  {"ab6a3584-aef0-4a82-8725-2f2336e59f3e" => { "ext" => "json", "table_columns" => [ "Timestamp", "Value", "Custom" ] } }
+Allow to support multiple tables, and to configure each table with its own parameters, using the global parameters as defaults.
+It is only required if the plugin need to support mutiple table.
+Tables is Hash, where the key is the table_id and the value is a has of specific properties, that their defualt value are the global properties.
+The specific properties are: intrumentation_key, table_columns, blob_max_delay, csv_default_value, serialized_event_field, blob_serialization, csv_separator
+template:
+```ruby
+tables => { "table_id1" => { properties } "table_id2" => { properties } }
+```
 
+Examples:
+```ruby
+tables => { "6f29a89e-1385-4317-85af-3ac1cea48058" => { "intrumentation_key" => "76c3b8e9-dfc6-4afd-8d4c-3b02fdadb19f", "blob_max_delay" => 60 } }
+```
+
+```ruby
+tables => { "6f29a89e-1385-4317-85af-3ac1cea48058" => { "intrumentation_key" => "76c3b8e9-dfc6-4afd-8d4c-3b02fdadb19f", "blob_max_delay" => 60 }
+            "2e1b46aa-56d2-4e13-a742-d0db516d66fc" => { "intrumentation_key" => "76c3b8e9-dfc6-4afd-8d4c-3b02fdadb19f", "blob_max_delay" => 120 "ext" => "csv" "serialized_event_field" => "message" } 
+          }
+```
 
 # Logstash with Configuration example
 
@@ -365,16 +386,16 @@ input {
     start_position => "beginning"
   }
 }
-	filter {
-	  [some filters here]
-	}
-	output {
-	  application_insights {
-	    intrumentation_key => "5A6714A3-EC7B-4999-AB96-232F1DA92059"
-      table_id => "C24394E1-F077-420E-8A25-EF6FDF045938"
-      storage_account_name_key => [ "my-storage-account", "pfrYTwPgKyYNfKBY2QdF+v5sbgx8/eAQp+FFkGpPBnkMDE1k+ZNK3r3qIPqqw8UsOIUqaF3dXBdPDouGJuxNXQ==" ]
-	  }
-	}
+filter {
+  # some filters here
+}
+output {
+  application_insights {
+    intrumentation_key => "5a6714a3-ec7b-4999-ab96-232f1da92059"
+    table_id => "c24394e1-f077-420e-8a25-ef6fdf045938"
+    storage_account_name_key => [ "my-storage-account", "pfrYTwPgKyYNfKBY2QdF+v5sbgx8/eAQp+FFkGpPBnkMDE1k+ZNK3r3qIPqqw8UsOIUqaF3dXBdPDouGJuxNXQ==" ]
+  }
+}
 ```
 
 # Getting Started for Contributors

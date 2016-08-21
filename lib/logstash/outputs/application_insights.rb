@@ -116,9 +116,9 @@ class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
   # A hash of table_ids, where each table_id points to a set of properties
   # the properties are a hash, where the keys are are the properties
   # current supported properties per table_id are:
-  # intrumentation_key, ext, table_columns, csv_default_value, csv_separator, max_delay, event_separator, data_field
+  # intrumentation_key, ext, table_columns, csv_default_value, csv_separator, blob_max_delay, event_separator, serialized_event_field
   # intrumentation_key, Application Insights Analytics intrumentation_key, will be used in case not specified in any of the event's fields or events's metadata fileds
-  # data_field, specifies the data field that may contain the full serialized event (either as json or csv), 
+  # serialized_event_field, specifies the field that may contain the full serialized event (either as json or csv), 
   #             when specified, the ext property should be set either to csv or to json (json is the default)
   #             if event. does not conatin the field, value will be created based on the fileds in the evnt, according to table_columns if configured, or all fileds in event
   #             if event contains this filed, and ext is csv
@@ -131,7 +131,7 @@ class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
   #                  if value is an array, it will be zipped with table_columns (if exist) and serialized to json
   # ext, blob extension, the only valid values are either csv or json, 
   #             should be set whenever the default json is not appropriate (.e, csv)
-  # max_delay, maximum latency time, in seconds, since the time the event arrived till it should be commited in azure storage, and Application Insights is notified
+  # blob_max_delay, maximum latency time, in seconds, since the time the event arrived till it should be commited in azure storage, and Application Insights is notified
   # event_separator, specifies the string that is used as a separator between events in the blob
   # table_columns, specifies the event fields that should be serialized, and their order (order is required for csv)
   #          if csv serialization will be used for this table_id
@@ -145,11 +145,11 @@ class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
   #                can be specified only together with table_columns
   #
   # Example json table_id
-  #   tables => {"a679fbd2-702c-4c46-8548-80082c66ef28" => {"intrumentation_key" => "abee940b-e648-4242-b6b3-f2826667bf96", "max_delay" => 60} }
-  # Example json table_id, input in data_field
-  #   {"ab6a3584-aef0-4a82-8725-2f2336e59f3e" => {"data_field" => "message". "ext" => "json"} }
-  # Example csv table_id, input in data_field
-  #   {"ab6a3584-aef0-4a82-8725-2f2336e59f3e" => {"data_field" => "csv_message". "ext" => "csv"} }
+  #   tables => {"a679fbd2-702c-4c46-8548-80082c66ef28" => {"intrumentation_key" => "abee940b-e648-4242-b6b3-f2826667bf96", "blob_max_delay" => 60} }
+  # Example json table_id, input in serialized_event_field
+  #   {"ab6a3584-aef0-4a82-8725-2f2336e59f3e" => {"serialized_event_field" => "message". "ext" => "json"} }
+  # Example csv table_id, input in serialized_event_field
+  #   {"ab6a3584-aef0-4a82-8725-2f2336e59f3e" => {"serialized_event_field" => "csv_message". "ext" => "csv"} }
   # Example csv table_id, input in event fields
   #   {"ab6a3584-aef0-4a82-8725-2f2336e59f3e" => { "ext" => "csv", "table_columns" => [ {name => "Timestamp" type => datetime }, "Value", "Custom" ] } }
   # Example csv table_id, input in event fields
@@ -170,6 +170,10 @@ class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
   # till it is commited to azure storage, and Application Insights is notified
   # The total latency may be higher, as this is not the full ingestion flow 
   config :blob_max_delay, :validate => :number
+
+  # Specifies the blob serialziation to create. Default "json"
+  # currently 2 types are supported "csv" and "json""
+  config :blob_serialization, :validate => :string
 
   # Interval of time between retries due to IO failures
   config :io_retry_delay, :validate => :number
@@ -204,13 +208,17 @@ class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
 
   # Advanced, internal, should not be set, the default is AI, 
   # Specifies the program name that will displayed in each log record
-  config :logger_shift_progname, :validate => :string
+  config :logger_progname, :validate => :string
 
   # Specifies when file logs are shifted. valid values are either an integer or "daily", "weekly" or "monthly"
   config :logger_shift_size
 
-  # Specifies the shift age of a log
+  # Specifies the shift age of a log.
+  # Number of old files to keep, or frequency of rotation (daily, weekly or monthly)
   config :logger_shift_age, :validate => :number
+
+  # Specifies a serialized event field name, that if exist in current event, its value as is will be taken as the serialized event. No Default
+  config :serialized_event_field, :validate => :string
 
   # Specifies the time interval, between tests that check whether a stoarge account came back to life, 
   # after it stoped responding 
