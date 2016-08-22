@@ -47,7 +47,7 @@ require "csv"
 require "application_insights"
 
 class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
-  autoload "logstash/outputs/application_insights/version"
+  require "logstash/outputs/application_insights/version"
   require "logstash/outputs/application_insights/utils" 
   require "logstash/outputs/application_insights/constants" 
   require "logstash/outputs/application_insights/config" 
@@ -278,6 +278,14 @@ class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
   # Advanced, internal, should not be set, the only current valid value is 1
   config :notification_version, :validate => :number
 
+  # When set to true, access to application insights will be validated at initialization
+  # and if validation fail, logstash process will abort
+  config :validate_endpoint, :validate => :boolean, :default => true
+
+  # When set to true, access to azure storage for each of the configured accounts will be validated at initialization
+  # and if validation fail, logstash process will abort
+  config :validate_storage, :validate => :boolean, :default => true
+
   public
 
   def register
@@ -298,7 +306,8 @@ class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
 
     Timer.config( configuration )
     Blob.config( configuration )
-
+    Blob.validate_endpoint if @validate_endpoint
+    Blob.validate_storage if @validate_storage
 
     @shutdown = Shutdown.instance
     @channels = Channels.instance
@@ -312,6 +321,8 @@ class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
     # end
 
     Telemetry.instance.track_event("register", {:properties => configuration})
+
+
     return "ok\n"
   end # def register
   

@@ -17,6 +17,10 @@ Note:
 * x64 Ruby for Windows is known to have some compatibility issues.
 * the plugin depends on azure-storage that depends on gem nokogiri, which doesn't support Ruby 2.2+ on Windows.
 
+
+
+
+
 # Setting up
 
 ## Install Logstash
@@ -59,6 +63,8 @@ bin/logstash -f 'file://localhost/../your-config-file'
 
 
 
+
+
 # Installation options
 
 ## One command installation:
@@ -95,7 +101,9 @@ bin/logstash-plugin install "logstash-output-application_insights"
 ```
 
 
-# logstash-output-application-insights configuration parameters
+
+
+# Configuration parameters
 
 ### storage_account_name_key
 Array of pairs, storage_account_name and an array of acces_keys. No default
@@ -349,6 +357,19 @@ When set to true, not notified blobs are deleted, if not set they are copied to 
 example:
 ```ruby
 delete_not_notified_blobs => true
+```
+### validate_endpoint
+When set to true, access to application insights will be validated at initialization and if validation fail, logstash process will abort. Default false
+example:
+```ruby
+validate_endpoint => true
+```
+
+### validate_storage
+When set to true, access to azure storage for each of the configured accounts will be validated at initialization and if validation fail, logstash process will abort. Default false
+example:
+```ruby
+validate_storage => true
 ```
 
 ### save_notified_blobs_records

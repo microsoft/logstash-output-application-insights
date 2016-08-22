@@ -32,6 +32,8 @@ class LogStash::Outputs::Application_insights
 
     attr_reader :io_queue
 
+    attr_reader :last_io_exception
+
     public
 
     def self.config ( configuration )
@@ -201,6 +203,18 @@ class LogStash::Outputs::Application_insights
             next
           end 
         end
+      end
+    end
+
+    def self.validate_endpoint
+      io = Blob.new
+      raise ConfigurationError, "Failed to access application insights #{@@configuration[:notification_endpoint]}, due to error #{io.last_io_exception.inspect}" unless io.test_notification_endpoint( @@configuration[:storage_account_name_key][0][0] )
+    end
+
+    def self.validate_storage
+      io = Blob.new
+      @@configuration[:storage_account_name_key].each do |storage_account_name, storage_account_keys|
+        raise ConfigurationError, "Failed access azure storage account #{storage_account_name}, due to error #{io.last_io_exception.inspect}" unless io.test_storage( storage_account_name )
       end
     end
 
@@ -706,6 +720,7 @@ class LogStash::Outputs::Application_insights
         raise
 
       rescue StandardError => e
+        @last_io_exception = e
         @recovery = nil
         retry if recover_retry?( e, recover_later_proc )
         false
