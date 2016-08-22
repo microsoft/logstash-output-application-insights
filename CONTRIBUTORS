@@ -1,8 +1,7 @@
 The following is a list of people who have contributed ideas, code, bug
-reports, or in general have helped logstash along its way.
+reports, or in general have helped logstash-output-application-insights along its way.
 
 Contributors:
-* Michael Binshtock (mbnshtck)
 
 Note: If you've sent us patches, bug reports, or otherwise contributed to
 logstash-output-application-insights plugin, and you aren't on the list above and 

@@ -1,4 +1,5 @@
-## 0.1.0 (May 29, 2016)
-* Created the plugin
+## 0.1.1 (Aug 22, 2016)
+
+* Plugin published
 
 

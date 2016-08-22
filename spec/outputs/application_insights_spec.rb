@@ -19,37 +19,24 @@
 # permissions and limitations under the License.
 # ----------------------------------------------------------------------------------
 
-class LogStash::Outputs::Application_insights
+require "logstash/devutils/rspec/spec_helper"
+require "logstash/outputs/application_insights"
+require "logstash/codecs/plain"
+require "logstash/event"
 
-  # exception that are handled internally and do NOT cause process to end
-  class BlockOverflowError < StandardError
+describe LogStash::Outputs::Application_insights do
+  let(:sample_event) { LogStash::Event.new }
+  let(:output) { LogStash::Outputs::Application_insights.new }
+
+  before do
+    output.register
   end
 
-  class BlockTooSmallError < StandardError
-  end
+  describe "receive message" do
+    subject { output.receive(sample_event) }
 
-  class NoChannelError < StandardError
+    it "returns a string" do
+      expect(subject).to eq("Event received")
+    end
   end
-
-  class ChannelExistError < StandardError
-  end
-
-  class StorageAccountsOffError < StandardError
-  end
-
-  class UploadRetryError < StandardError
-  end
-
-  class NotRecoverableError < StandardError
-  end
-
-  # exception that cause process to end
-  # LogStash::ConfigurationError, "ssl_truststore_location must be set when SSL is enabled"
-  # class ConfigurationError < StandardError
-  class ConfigurationError < LogStash::ConfigurationError
-  end
-
-  class UnexpectedBranchError < StandardError
-  end
-
 end

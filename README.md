@@ -1,15 +1,6 @@
-# Microsoft Application Insights Output Plugin
+# Microsoft Application Insights Output Plugin for Logstash
 
-This is a plugin for [Logstash](https://github.com/elastic/logstash).
-
-It is fully free and fully open source. The license is Apache 2.0, meaning you are pretty much free to use it however you want in whatever way.
-
-
-[![Gem Version](https://badge.fury.io/rb/azure-storage.svg)](https://badge.fury.io/rb/azure-storage)
-* Master: [![Master Build Status](https://travis-ci.org/Azure/azure-storage-ruby.svg?branch=master)](https://travis-ci.org/Azure/azure-storage-ruby/branches) [![Coverage Status](https://coveralls.io/repos/github/Azure/azure-storage-ruby/badge.svg?branch=master)](https://coveralls.io/github/Azure/azure-storage-ruby?branch=master)
-* Dev: [![Dev Build Status](https://travis-ci.org/Azure/azure-storage-ruby.svg?branch=dev)](https://travis-ci.org/Azure/azure-storage-ruby/branches) [![Coverage Status](https://coveralls.io/repos/github/Azure/azure-storage-ruby/badge.svg?branch=dev)](https://coveralls.io/github/Azure/azure-storage-ruby?branch=dev)
-
-This project provides a Ruby package that makes it easy to access and manage Microsoft Azure Storage Services.
+This project is a plugin for [Logstash](https://github.com/elastic/logstash).
 
 # Plugin Features
 
@@ -60,6 +51,7 @@ bin/logstash-plugin install --no-verify
 
 ### storage_account_name_key
 Array of pairs, storage_account_name and an array of acces_keys. No default
+At least one pair is required. If not defined, values will be taken (if exist) from Environment Variable: AZURE_STORAGE_ACCOUNT and AZURE_STORAGE_ACCESS_KEY
 examples:
 ```ruby
 storage_account_name_key => [ "my-storage-account", "pfrYTwPgKyYNfKBY2QdF+v5sbgx8/eAQp+FFkGpPBnkMDE1k+ZNK3r3qIPqqw8UsOIUqaF3dXBdPDouGJuxNXQ==" ]
@@ -287,7 +279,7 @@ flow_control_delay => 0.5
 File path of the CA file, required only if having issue with SSL (see OpenSSL). No default
 example:
 ```ruby
-ca_file => "/path/to/cafile.pem"
+ca_file => "/path/to/cafile.crt"
 ```
 
 ### disable_telemetry
@@ -375,7 +367,7 @@ tables => { "6f29a89e-1385-4317-85af-3ac1cea48058" => { "intrumentation_key" => 
           }
 ```
 
-# Logstash with Configuration example
+# Configuration example
 
 - Reading data from files and storing in Application Insights:
 
@@ -396,6 +388,50 @@ output {
     storage_account_name_key => [ "my-storage-account", "pfrYTwPgKyYNfKBY2QdF+v5sbgx8/eAQp+FFkGpPBnkMDE1k+ZNK3r3qIPqqw8UsOIUqaF3dXBdPDouGJuxNXQ==" ]
   }
 }
+```
+
+# Enviroment variables
+###AZURE_STORAGE_ACCOUNT
+Specifies the Azure storage account name
+Will be used by the plugin to set the account name part in plugin property **storage_account_name_key** if it is missing
+Example:
+```sh
+AZURE_STORAGE_ACCOUNT="my-storage-account"
+```
+
+###AZURE_STORAGE_ACCESS_KEY
+Specifies the Azure storage account access key
+Will be used by the plugin to set the key part in plugin property **storage_account_name_key** if it is missing
+Example:
+```sh
+AZURE_STORAGE_ACCESS_KEY="pfrYTwPgKyYNfKBY2QdF+v5sbgx8/eAQp+FFkGpPBnkMDE1k+ZNK3r3qIPqqw8UsOIUqaF3dXBdPDouGJuxNXQ=="
+```
+
+# Setting up Http/Https Proxy
+
+If you use a proxy server or firewall, you may need to set the HTTP_PROXY and/or HTTPS_PROXY **environment variables** in order to access Azure storage and Application Insights.
+Examples:
+```sh
+HTTP_PROXY=http://proxy.example.org
+HTTPS_PROXY=https://proxy.example.org
+```
+
+- If the proxy server requires a user name and password, include them in the following form:
+```sh
+HTTP_PROXY=http://username:password@proxy.example.org
+```
+
+- If the proxy server uses a port other than 80, include the port number:
+```sh
+HTTP_PROXY=http://username:password@proxy.example.org:8080
+```
+
+# Setting up SSL certificates
+
+When using SSL/HTTPS, typically log in or authentication may require a CA Authority (CA) certificate. If the required certificate is not already bundled in the system. it may be configured in the plugin (see above ca_file)
+example:
+```ruby
+ca_file => "/path/to/cafile.crt"
 ```
 
 # Getting Started for Contributors
