@@ -47,7 +47,7 @@ require "csv"
 require "application_insights"
 
 class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
-  require "logstash/outputs/application_insights/version"
+  autoload "logstash/outputs/application_insights/version"
   require "logstash/outputs/application_insights/utils" 
   require "logstash/outputs/application_insights/constants" 
   require "logstash/outputs/application_insights/config" 

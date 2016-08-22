@@ -1,6 +1,7 @@
 # Microsoft Application Insights Output Plugin for Logstash
 
 [![GitHub version](https://badge.fury.io/gh/microsoft%2Flogstash-output-application-insights.svg)](https://badge.fury.io/gh/microsoft%2Flogstash-output-application-insights)
+[![Gem Version](https://badge.fury.io/rb/logstash-output-application_insights.svg)](https://badge.fury.io/rb/logstash-output-application_insights)
 
 This project is a plugin for [Logstash](https://github.com/elastic/logstash).
 
@@ -16,40 +17,85 @@ Note:
 * x64 Ruby for Windows is known to have some compatibility issues.
 * the plugin depends on azure-storage that depends on gem nokogiri, which doesn't support Ruby 2.2+ on Windows.
 
-# Running Plugin in Logstash
+# Setting up
 
-## Option1: Run in a local Logstash clone
+## Install Logstash
+
+  - Download logstash from https://www.elastic.co/downloads/logstash
+
+## Install logstash-output-application_insights output plugin
+
+One command installation:
+```sh
+bin/logstash-plugin install "logstash-output-application_insights"
+```
+
+## Create configuration file
+
+Example (input from files output Application Insights):
+```ruby
+input {
+  file {
+    path => "/../files/*"
+    start_position => "beginning"
+  }
+}
+filter {
+  # some filters here
+}
+output {
+  application_insights {
+    intrumentation_key => "5a6714a3-ec7b-4999-ab96-232f1da92059"
+    table_id => "c24394e1-f077-420e-8a25-ef6fdf045938"
+    storage_account_name_key => [ "my-storage-account", "pfrYTwPgKyYNfKBY2QdF+v5sbgx8/eAQp+FFkGpPBnkMDE1k+ZNK3r3qIPqqw8UsOIUqaF3dXBdPDouGJuxNXQ==" ]
+  }
+}
+```
+
+## Run Logstash
+```sh
+bin/logstash -f 'file://localhost/../your-config-file'
+```
+
+
+
+# Installation options
+
+## One command installation:
+```sh
+bin/logstash-plugin install "logstash-output-application_insights"
+```
+
+**If above does not work, or you would like to patch code here is a workaround to install this plugin within your logstash:**
+
+- Check out/clone microsoft/logstash-output-application-insights code from github https://github.com/Microsoft/logstash-output-application-insights
+
+## Option 1: Run in a local Logstash clone
 
 - Edit Logstash `Gemfile` and add the logstash-output-application-insights plugin path:
 ```ruby
 gem "logstash-output-application-insights", :path => "/../logstash-output-application-insights"
 ```
-- Install plugin
+
+- Install plugin the plugin from the Logstash home
 ```sh
-# Logstash 2.3 and higher
 bin/logstash-plugin install --no-verify
-
 ```
-- Run Logstash with plugin
-```sh
-bin/logstash -f 'file://localhost/../your-config-file'
-```
-## Option2:  Run in an installed Logstash
 
-You can use the same method as in local Logstash clone to run the plugin in an installed Logstash by editing its `Gemfile` and pointing the `:path` to the local plugin directory or you can build the gem and install it using:
+## Option 2:  Run in an installed Logstash
 
 - Build your plugin gem
 ```sh
 gem build logstash-output-application-insights.gemspec
 ```
+
 - Install the plugin from the Logstash home
 ```sh
-bin/logstash-plugin install --no-verify
-
+bin/logstash-plugin install "logstash-output-application_insights"
 ```
-- Start Logstash and use the plugin
 
-## Plugin configuration parameters
+
+# logstash-output-application-insights configuration parameters
 
 ### storage_account_name_key
 Array of pairs, storage_account_name and an array of acces_keys. No default
@@ -369,30 +415,9 @@ tables => { "6f29a89e-1385-4317-85af-3ac1cea48058" => { "intrumentation_key" => 
           }
 ```
 
-# Configuration example
-
-- Reading data from files and storing in Application Insights:
-
-```ruby
-input {
-  file {
-    path => "/../files/*"
-    start_position => "beginning"
-  }
-}
-filter {
-  # some filters here
-}
-output {
-  application_insights {
-    intrumentation_key => "5a6714a3-ec7b-4999-ab96-232f1da92059"
-    table_id => "c24394e1-f077-420e-8a25-ef6fdf045938"
-    storage_account_name_key => [ "my-storage-account", "pfrYTwPgKyYNfKBY2QdF+v5sbgx8/eAQp+FFkGpPBnkMDE1k+ZNK3r3qIPqqw8UsOIUqaF3dXBdPDouGJuxNXQ==" ]
-  }
-}
-```
 
 # Enviroment variables
+
 ###AZURE_STORAGE_ACCOUNT
 Specifies the Azure storage account name
 Will be used by the plugin to set the account name part in plugin property **storage_account_name_key** if it is missing
@@ -438,12 +463,11 @@ ca_file => "/path/to/cafile.crt"
 
 # Getting Started for Contributors
 
-If you would like to become an active contributor to this project please follow the instructions provided in [Azure Projects Contribution Guidelines](http://azure.github.io/guidelines/).
-You can find more details for contributing in the [CONTRIBUTING.md](CONTRIBUTING.md).
+If you would like to become an active contributor to this project please follow the instructions provided in [CONTRIBUTING.md](CONTRIBUTING.md) and  [DEVELOPER.md](DEVELOPER.md)
 
 # Provide Feedback
 
-If you encounter any bugs with the library please file an issue in the [Issues](https://github.com/Azure/azure-storage-ruby/issues) section of the project.
+If you encounter any bugs with the library please file an issue in the [Issues](https://github.com/Microsoft/logstash-output-application-insights/issues) section of the project.
 
 # Code of Conduct 
 
