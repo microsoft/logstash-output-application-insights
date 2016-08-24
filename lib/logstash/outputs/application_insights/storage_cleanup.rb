@@ -115,7 +115,7 @@ class LogStash::Outputs::Application_insights
       continuation_token = nil
       filter = "#{:container_name} eq '#{container_name}' and #{:log_state} ne '#{:notified}'"
       begin
-        entities = log_to_table_query( @storage_account_name, filter , continuation_token )
+        entities = state_table_query( @storage_account_name, filter , continuation_token )
         return nil unless entities
         token = entities.continuation_token
         entities.each do |entity|
@@ -177,11 +177,11 @@ class LogStash::Outputs::Application_insights
       continuation_token = nil
       filter = "#{:container_name} eq '#{container_name}'"
       begin
-        entities = log_to_table_query( @storage_account_name, filter , continuation_token )
+        entities = state_table_query( @storage_account_name, filter , continuation_token )
         return nil unless entities
         token = entities.continuation_token
         entities.each do |entity|
-          return nil unless log_to_table_delete( table_entity_to_tuple( entity.properties ) )
+          return nil unless state_table_delete( table_entity_to_tuple( entity.properties ) )
         end
       end while continuation_token
       true

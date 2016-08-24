@@ -29,11 +29,11 @@ class LogStash::Outputs::Application_insights
 
       @logger = configuration[:logger]
 
-      @intrumentation_key_table_id_db = {}
+      @instrumentation_key_table_id_db = {}
       @channels = [  ]
       @create_semaphore = Mutex.new
 
-      @default_intrumentation_key = configuration[:intrumentation_key]
+      @default_instrumentation_key = configuration[:instrumentation_key]
       @default_table_id = configuration[:table_id]
       @tables = configuration[:tables]
 
@@ -46,29 +46,29 @@ class LogStash::Outputs::Application_insights
 
     def receive ( event, encoded_event )
       if LogStash::SHUTDOWN == event
-        @logger.info { "received a LogStash::SHUTDOWN event, start shutdown" }
+        @logger.info { "received a LogStash::SHUTDOWN event" }
 
       elsif LogStash::FLUSH == event
-        @logger.info { "received a LogStash::FLUSH event, start shutdown" }
+        @logger.info { "received a LogStash::FLUSH event" }
+      else
+        table_id = event[METADATA_FIELD_TABLE_ID] || event[FIELD_TABLE_ID] || @default_table_id
+        instrumentation_key = event[METADATA_FIELD_INSTRUMENTATION_KEY] || event[FIELD_INSTRUMENTATION_KEY] || ( @tables[table_id][:instrumentation_key] if @tables[table_id] ) || @default_instrumentation_key
+
+        @flow_control.pass_or_wait
+        channel( instrumentation_key, table_id ) << event
       end
-
-      table_id = event[METADATA_FIELD_TABLE_ID] || event[FIELD_TABLE_ID] || @default_table_id
-      intrumentation_key = event[METADATA_FIELD_INSTRUMENTATION_KEY] || event[FIELD_INSTRUMENTATION_KEY] || ( @tables[table_id][TABLE_PROPERTY_INSTRUMENTATION_KEY] if @tables[table_id] ) || @default_intrumentation_key
-
-      @flow_control.pass_or_wait
-      channel( intrumentation_key, table_id ) << event
     end
 
 
-    def channel ( intrumentation_key, table_id )
+    def channel ( instrumentation_key, table_id )
       begin
-        dispatch_channel( intrumentation_key, table_id )
+        dispatch_channel( instrumentation_key, table_id )
 
       rescue NoChannelError
         begin
-          create_channel( intrumentation_key, table_id )
+          create_channel( instrumentation_key, table_id )
         rescue ChannelExistError # can happen due to race conditions
-          dispatch_channel( intrumentation_key, table_id )
+          dispatch_channel( instrumentation_key, table_id )
         end
       end
     end
@@ -89,13 +89,13 @@ class LogStash::Outputs::Application_insights
     private
 
     # return channel
-    def dispatch_channel ( intrumentation_key, table_id )
+    def dispatch_channel ( instrumentation_key, table_id )
       begin
-        channel = @intrumentation_key_table_id_db[intrumentation_key][table_id]
-        channel.intrumentation_key     # don't remove it, it is to emit an exception in case channel not created yet'
+        channel = @instrumentation_key_table_id_db[instrumentation_key][table_id]
+        channel.instrumentation_key     # don't remove it, it is to emit an exception in case channel not created yet'
         channel
       rescue => e
-        raise NoChannelError if @intrumentation_key_table_id_db[intrumentation_key].nil? || @intrumentation_key_table_id_db[intrumentation_key][table_id].nil?
+        raise NoChannelError if @instrumentation_key_table_id_db[instrumentation_key].nil? || @instrumentation_key_table_id_db[instrumentation_key][table_id].nil?
         @logger.error { "Channel dispatch failed - error: #{e.inspect}" }
         raise e
       end 
@@ -103,12 +103,12 @@ class LogStash::Outputs::Application_insights
 
 
     # return channel
-    def create_channel ( intrumentation_key, table_id )
+    def create_channel ( instrumentation_key, table_id )
       @create_semaphore.synchronize {      
-        raise ChannelExistError if @intrumentation_key_table_id_db[intrumentation_key] && @intrumentation_key_table_id_db[intrumentation_key][table_id]
-        @intrumentation_key_table_id_db[intrumentation_key] ||= {}
-        channel = Channel.new( intrumentation_key, table_id )
-        @intrumentation_key_table_id_db[intrumentation_key][table_id] = channel
+        raise ChannelExistError if @instrumentation_key_table_id_db[instrumentation_key] && @instrumentation_key_table_id_db[instrumentation_key][table_id]
+        @instrumentation_key_table_id_db[instrumentation_key] ||= {}
+        channel = Channel.new( instrumentation_key, table_id )
+        @instrumentation_key_table_id_db[instrumentation_key][table_id] = channel
         @channels << channel
         channel
       }
@@ -122,7 +122,7 @@ class LogStash::Outputs::Application_insights
       end
     end
 
-    def mark_invalid_intrumentation_key ( intrumentation_key )
+    def mark_invalid_instrumentation_key ( instrumentation_key )
       # TODO should go to lost and found container
     end
 

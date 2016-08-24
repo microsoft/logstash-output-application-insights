@@ -21,7 +21,7 @@
 class LogStash::Outputs::Application_insights
   class Blob
 
-    attr_reader :intrumentation_key
+    attr_reader :instrumentation_key
     attr_reader :table_id
     attr_reader :storage_account_name
     attr_reader :container_name
@@ -44,7 +44,9 @@ class LogStash::Outputs::Application_insights
       @@io_max_retries = configuration[:io_max_retries]
       @@blob_max_bytesize = configuration[:blob_max_bytesize]
       @@blob_max_events = configuration[:blob_max_events]
-      @@state_table_name = "#{configuration[:azure_storage_table_prefix]}#{STATE_TABLE_NAME}"
+      @@state_table_name = "#{AZURE_STORAGE_TABLE_LOGSTASH_PREFIX}#{configuration[:azure_storage_table_prefix]}#{STATE_TABLE_NAME}"
+      @@test_storage_container= "#{AZURE_STORAGE_CONTAINER_LOGSTASH_PREFIX}#{@@configuration[:azure_storage_container_prefix]}-#{STORAGE_TEST_CONTAINER_NAME}"
+      @@partition_key_prefix = @@configuration[:azure_storage_blob_prefix].gsub( "/", "" )
       @@save_notified_blobs_records = configuration[:save_notified_blobs_records]
 
       @@closing = false
@@ -63,8 +65,8 @@ class LogStash::Outputs::Application_insights
       launch_endpoint_recovery_thread
 
       # queues, per storage_account_name, for failed to log to table, will continue to try resending
-      @@failed_on_log_to_table_retry_Qs = {}
-      launch_storage_recovery_threads( @@failed_on_log_to_table_retry_Qs, :log_to_table_update, :io_failure )
+      @@failed_on_state_table_retry_Qs = {}
+      launch_storage_recovery_threads( @@failed_on_state_table_retry_Qs, :state_table_update, :io_failure )
 
     end
 
@@ -77,8 +79,8 @@ class LogStash::Outputs::Application_insights
     end
 
     def self.launch_endpoint_recovery_thread
-      @@failed_on_notification_endpoint_retry_Q = Queue.new
-      storage_recovery_thread( nil, @@failed_on_notification_endpoint_retry_Q, :notify, :io_failure )
+      @@failed_on_application_insights_endpoint_retry_Q = Queue.new
+      storage_recovery_thread( nil, @@failed_on_application_insights_endpoint_retry_Q, :notify, :io_failure )
     end
 
     def self.launch_storage_recovery_threads ( queues, method, failure_reason )
@@ -106,11 +108,11 @@ class LogStash::Outputs::Application_insights
         upload_empty_tuples = [  ]
         token = nil
         finished = false
-        filter = "#{:PartitionKey} eq '#{@@configuration[:azure_storage_blob_prefix]}-#{state}'"
+        filter = "#{:PartitionKey} eq '#{@@partition_key_prefix}-#{state}'"
 
         # should exit thread after fetching data from table, and submit recovery, the loop is only for case of failure
         until finished || stopped? do
-          entities = blob.log_to_table_query( storage_account_name, filter, token )
+          entities = blob.state_table_query( storage_account_name, filter, token )
           if entities
             token = entities.continuation_token
 
@@ -118,7 +120,7 @@ class LogStash::Outputs::Application_insights
               entities.each do |entity|
                 State.instance.inc_pending_notifications
                 tuple = blob.table_entity_to_tuple( entity.properties )
-                @@failed_on_notification_endpoint_retry_Q << tuple
+                @@failed_on_application_insights_endpoint_retry_Q << tuple
               end
 
             elsif :uploading == state
@@ -144,14 +146,14 @@ class LogStash::Outputs::Application_insights
             next if token
             committed_tuples.each do |tuple|
               State.instance.inc_pending_commits
-              @@failed_on_log_to_table_retry_Qs[storage_account_name] << tuple
+              @@failed_on_state_table_retry_Qs[storage_account_name] << tuple
             end
             uncommitted_tuples.each do |tuple|
               State.instance.inc_pending_commits
               @@failed_on_commit_retry_Qs[storage_account_name] << tuple
             end
             upload_empty_tuples.each do |tuple|
-              @@failed_on_log_to_table_retry_Qs[storage_account_name] << tuple
+              @@failed_on_state_table_retry_Qs[storage_account_name] << tuple
             end
             finished = true
           else
@@ -165,7 +167,7 @@ class LogStash::Outputs::Application_insights
     def self.state_on? ( storage_account_name, blob, failure_reason )
       if blob
         if :io_failure == failure_reason
-          @@endpoint_state_on ||= blob.test_notification_endpoint( @@configuration[:storage_account_name_key][0][0] )
+          @@endpoint_state_on ||= blob.test_application_insights_endpoint( @@configuration[:storage_account_name_key][0][0] )
         else
           Clients.instance.storage_account_state_on?( storage_account_name )
         end
@@ -208,7 +210,7 @@ class LogStash::Outputs::Application_insights
 
     def self.validate_endpoint
       io = Blob.new
-      raise ConfigurationError, "Failed to access application insights #{@@configuration[:notification_endpoint]}, due to error #{io.last_io_exception.inspect}" unless io.test_notification_endpoint( @@configuration[:storage_account_name_key][0][0] )
+      raise ConfigurationError, "Failed to access application insights #{@@configuration[:application_insights_endpoint]}, due to error #{io.last_io_exception.inspect}" unless io.test_application_insights_endpoint( @@configuration[:storage_account_name_key][0][0] )
     end
 
     def self.validate_storage
@@ -229,7 +231,7 @@ class LogStash::Outputs::Application_insights
 
       if channel
         @id = id
-        @intrumentation_key = channel.intrumentation_key
+        @instrumentation_key = channel.instrumentation_key
         @table_id = channel.table_id
         @blob_max_delay = channel.blob_max_delay
 
@@ -334,7 +336,7 @@ class LogStash::Outputs::Application_insights
     end
 
     def table_entity_to_tuple( options = {} )
-      [ options[:start_time.to_s] || Time.now.utc, options[:action.to_s], options[:intrumentation_key.to_s], options[:table_id.to_s], 
+      [ options[:start_time.to_s] || Time.now.utc, options[:action.to_s], options[:instrumentation_key.to_s], options[:table_id.to_s], 
         options[:storage_account_name.to_s], options[:container_name.to_s], options[:blob_name.to_s], 
         eval( options[:uploaded_block_ids.to_s] ), eval( options[:uploaded_block_numbers.to_s] ), 
         options[:uploaded_events_count.to_s] || 0, options[:uploaded_bytesize.to_s] || 0, options[:oldest_event_time.to_s] || Time.now.utc,
@@ -344,7 +346,7 @@ class LogStash::Outputs::Application_insights
     end
 
     def state_to_tuple
-      [ @start_time || Time.now.utc, @action, @intrumentation_key, @table_id, 
+      [ @start_time || Time.now.utc, @action, @instrumentation_key, @table_id, 
         @storage_account_name, @container_name, @blob_name, 
         @uploaded_block_ids, @uploaded_block_numbers, 
         @uploaded_events_count, @uploaded_bytesize, @oldest_event_time,
@@ -354,7 +356,7 @@ class LogStash::Outputs::Application_insights
     end
 
     def tuple_to_state ( tuple )
-      ( @start_time, @action, @intrumentation_key, @table_id, 
+      ( @start_time, @action, @instrumentation_key, @table_id, 
         @storage_account_name, @container_name, @blob_name, 
         @uploaded_block_ids, @uploaded_block_numbers, 
         @uploaded_events_count, @uploaded_bytesize, @oldest_event_time,
@@ -363,7 +365,7 @@ class LogStash::Outputs::Application_insights
     end
 
     def state_to_table_entity
-      { :start_time => @start_time, :intrumentation_key => @intrumentation_key, :table_id => @table_id, 
+      { :start_time => @start_time, :instrumentation_key => @instrumentation_key, :table_id => @table_id, 
         :storage_account_name => @storage_account_name, :container_name => @container_name, :blob_name => @blob_name, 
         :uploaded_block_ids => @uploaded_block_ids.to_s, :uploaded_block_numbers => @uploaded_block_numbers.to_s, 
         :uploaded_events_count => @uploaded_events_count, :uploaded_bytesize => @uploaded_bytesize, :oldest_event_time => @oldest_event_time,
@@ -385,29 +387,28 @@ class LogStash::Outputs::Application_insights
       @recoverable = [ :invalid_storage_key ]
       storage_io_block( test_storage_recover ) {
         if @recovery.nil? || :invalid_storage_key == @recovery
-          container_name = "logstash-test-container"
           @info = "#{@action} #{@storage_account_name}"
-          @client.blobClient.create_container( container_name ) unless @@configuration[:disable_blob_upload]
+          @client.blobClient.create_container( @@test_storage_container ) unless @@configuration[:disable_blob_upload]
         end
       }
     end
 
-    def test_notification_endpoint_recover
-      proc do |reason, e| @recovery = :ok if :invalid_intrumentation_key == reason || :invalid_table_id == reason end
+    def test_application_insights_endpoint_recover
+      proc do |reason, e| @recovery = :ok if :invalid_instrumentation_key == reason || :invalid_table_id == reason end
     end
 
-    def test_notification_endpoint( storage_account_name )
+    def test_application_insights_endpoint( storage_account_name )
       @storage_account_name = storage_account_name
-      @action = :test_notification_endpoint
+      @action = :test_application_insights_endpoint
       @max_tries = 1
       @force_client = true # to enable get a client even if all storage_accounts marked dead
       @recoverable = [  ]
-      success = storage_io_block( test_notification_endpoint_recover ) {
+      success = storage_io_block( test_application_insights_endpoint_recover ) {
         if @recovery.nil?
           @container_name = "logstash-test-container"
           @blob_name = "logstash-test-blob"
           @table_id = GUID_NULL
-          @intrumentation_key = GUID_NULL
+          @instrumentation_key = GUID_NULL
           @info = "#{@action}"
           set_blob_sas_url
           payload = create_payload
@@ -424,18 +425,18 @@ class LogStash::Outputs::Application_insights
         if :notify_failed_blob_not_accessible == reason
           @sub_state = reason
           @@failed_on_notify_retry_Qs[@storage_account_name] << state_to_tuple
-        elsif :invalid_intrumentation_key == reason || :invalid_table_id == reason
+        elsif :invalid_instrumentation_key == reason || :invalid_table_id == reason
           @sub_state = reason
-          Channels.instance.channel( @intrumentation_key, @table_id ).failed_on_notify_retry_Q << state_to_tuple
+          Channels.instance.channel( @instrumentation_key, @table_id ).failed_on_notify_retry_Q << state_to_tuple
 
         else
           @@endpoint_state_on = false
           if :notify_failed_blob_not_accessible == @sub_state
             @@failed_on_notify_retry_Qs[@storage_account_name] << state_to_tuple
-          elsif :invalid_intrumentation_key == @sub_state || :invalid_table_id == @sub_state
-            Channels.instance.channel( @intrumentation_key, @table_id ).failed_on_notify_retry_Q << state_to_tuple
+          elsif :invalid_instrumentation_key == @sub_state || :invalid_table_id == @sub_state
+            Channels.instance.channel( @instrumentation_key, @table_id ).failed_on_notify_retry_Q << state_to_tuple
           else
-            @@failed_on_notification_endpoint_retry_Q << state_to_tuple
+            @@failed_on_application_insights_endpoint_retry_Q << state_to_tuple
           end
         end
       end
@@ -456,7 +457,7 @@ class LogStash::Outputs::Application_insights
         post_notification( @client.notifyClient, payload ) unless @@configuration[:disable_notification]
         @log_state = :notified
       }
-      log_to_table_update if success
+      state_table_update if success
     end
 
     CREATE_EXIST_ERRORS = { :container => [ :create_container, :container_exist ], :table => [ :create_table, :table_exist ] }
@@ -485,39 +486,39 @@ class LogStash::Outputs::Application_insights
     end
 
     # return true on success
-    def log_to_table_insert
-      @action = :log_to_table_insert
+    def state_table_insert
+      @action = :state_table_insert
       @recoverable = [ :invalid_storage_key, :io_failure, :service_unavailable, :table_exist, :create_table, :table_busy, :entity_exist ]
       @info  = "#{@action} #{@log_state} #{@storage_account_name}/#{@container_name}/#{@blob_name}"
-      success =  storage_io_block( :uploading == @log_state ? proc do |reason, e| end : log_to_table_update_recover ) {
+      success =  storage_io_block( :uploading == @log_state ? proc do |reason, e| end : state_table_update_recover ) {
         create_table_exist_recovery
         if :entity_exist == @recovery
           raise NotRecoverableError if :uploading == @log_state
         else
           entity_values = state_to_table_entity
-          entity_values[:PartitionKey] = "#{@@configuration[:azure_storage_blob_prefix]}-#{@log_state}"
-          entity_values[:RowKey] = @blob_name
+          entity_values[:PartitionKey] = "#{@@partition_key_prefix}-#{@log_state}"
+          entity_values[:RowKey] = @blob_name.gsub("/","_")
           @client.tableClient.insert_entity( @@state_table_name, entity_values )
         end
       }
     end
 
-    def log_to_table_update_recover
-      proc do |reason, e| @@failed_on_log_to_table_retry_Qs[@storage_account_name] << state_to_tuple end
+    def state_table_update_recover
+      proc do |reason, e| @@failed_on_state_table_retry_Qs[@storage_account_name] << state_to_tuple end
     end
 
-    def log_to_table_update ( tuple = nil )
+    def state_table_update ( tuple = nil )
       tuple_to_state( tuple ) if tuple
       if :uploading == @log_state
-        log_to_table_delete
+        state_table_delete
       elsif :committed == @log_state
-        if log_to_table_insert && log_to_table_delete( nil, :uploading )
+        if state_table_insert && state_table_delete( nil, :uploading )
           State.instance.dec_pending_commits
           State.instance.inc_pending_notifications
-          @@failed_on_notification_endpoint_retry_Q << state_to_tuple
+          @@failed_on_application_insights_endpoint_retry_Q << state_to_tuple
         end
       elsif :notified == @log_state
-        if (!@@save_notified_blobs_records || log_to_table_insert) && log_to_table_delete( nil, :committed ) 
+        if (!@@save_notified_blobs_records || state_table_insert) && state_table_delete( nil, :committed ) 
           State.instance.dec_pending_notifications
         end
       end
@@ -525,28 +526,28 @@ class LogStash::Outputs::Application_insights
 
 
     # retturn tru on success
-    def log_to_table_delete ( tuple = nil, state = nil )
+    def state_table_delete ( tuple = nil, state = nil )
       tuple_to_state( tuple ) if tuple
       state ||= @log_state
-      @action = :log_to_table_delete
+      @action = :state_table_delete
       @recoverable = [ :invalid_storage_key, :io_failure, :service_unavailable, :table_exist, :create_table, :table_busy, :create_resource ]
       @info  = "#{@action} #{state} #{@storage_account_name}/#{@container_name}/#{@blob_name}"
 
-      success =  storage_io_block( log_to_table_update_recover ) {
+      success =  storage_io_block( state_table_update_recover ) {
         create_table_exist_recovery
         if :create_resource == @recovery
           @@logger.info { "Note: delete entity failed, already deleted, #{@info}, state: #{state}, log_state: #{@log_state}" }
         else
-          @client.tableClient.delete_entity( @@state_table_name, "#{@@configuration[:azure_storage_blob_prefix]}-#{state}", @blob_name )
+          @client.tableClient.delete_entity( @@state_table_name, "#{@@partition_key_prefix}-#{state}", @blob_name.gsub( "/", "_" ) )
         end
       }
     end
 
     # return entities
-    def log_to_table_query ( storage_account_name, filter , token )
+    def state_table_query ( storage_account_name, filter , token )
       @storage_account_name = storage_account_name
 
-      @action = :log_to_table_query
+      @action = :state_table_query
       @recoverable = [ :invalid_storage_key, :io_failure, :service_unavailable, :table_exist, :create_table, :table_busy ]
       @info  = "#{@action} #{@storage_account_name}/#{@@state_table_name}"
 
@@ -577,7 +578,7 @@ class LogStash::Outputs::Application_insights
           @log_state = :committed
         }
         # next stage
-        log_to_table_update if success
+        state_table_update if success
       end
     end
 
@@ -593,7 +594,7 @@ class LogStash::Outputs::Application_insights
         unless :io_all_dead == reason
           @recovery = :invalid_storage_account
         else 
-          Channels.instance.channel( @intrumentation_key, @table_id ).failed_on_upload_retry_Q << @block_to_upload
+          Channels.instance.channel( @instrumentation_key, @table_id ).failed_on_upload_retry_Q << @block_to_upload
           @block_to_upload = nil
         end
       end
@@ -615,7 +616,7 @@ class LogStash::Outputs::Application_insights
           # remove record of previous upload that failed
           if @storage_account_name
             exclude_storage_account_names << @storage_account_name
-            @@failed_on_log_to_table_retry_Qs[@storage_account_name] << state_to_tuple
+            @@failed_on_state_table_retry_Qs[@storage_account_name] << state_to_tuple
           end
           set_conatainer_and_blob_names
           @storage_account_name = Clients.instance.get_random_active_storage( exclude_storage_account_names )
@@ -623,7 +624,7 @@ class LogStash::Outputs::Application_insights
             upload_recover.call( :io_all_dead, nil )
             return false
           end
-          raise UploadRetryError unless log_to_table_insert
+          raise UploadRetryError unless state_table_insert
         end
 
         @action = :upload
@@ -769,7 +770,7 @@ class LogStash::Outputs::Application_insights
           @recovery = :notify_failed_blob_not_accessible
 
         elsif 400 == e.status_code  && "Unknown" == e.type && e.description.include?("Invalid instrumentation key")
-          @recovery = :invalid_intrumentation_key
+          @recovery = :invalid_instrumentation_key
 
         elsif 500 == e.status_code  && "Unknown" == e.type && e.description.include?("Processing error")
           @recovery = :notification_process_down
@@ -838,15 +839,15 @@ class LogStash::Outputs::Application_insights
           sleep( @@io_retry_delay )
           @@logger.error { "Failed to #{@info} ;( recovery: retry, error: #{e.inspect}" }
 
-        when :io_failure, :service_unavailable, :notification_process_down, :invalid_intrumentation_key, :invalid_table_id
+        when :io_failure, :service_unavailable, :notification_process_down, :invalid_instrumentation_key, :invalid_table_id
           if @try_count < @max_tries
             @client = @client.dispose if @client
             sleep( @@io_retry_delay )
             @@logger.error { "Failed to #{@info} ;( recovery: retry, try #{@try_count} / #{@max_tries}, error: #{e.inspect}" }
             @try_count += 1
           else
-            if :invalid_intrumentation_key == @recovery
-              Channels.instance.mark_invalid_intrumentation_key( @intrumentation_key )
+            if :invalid_instrumentation_key == @recovery
+              Channels.instance.mark_invalid_instrumentation_key( @instrumentation_key )
             elsif :invalid_table_id == @recovery
               Channels.instance.mark_invalid_table_id( @table_id )
             elsif :io_failure == @recovery || ( :service_unavailable == @recovery && :notify != @action )
@@ -877,10 +878,11 @@ class LogStash::Outputs::Application_insights
       time_utc = Time.now.utc
       id = @id.to_s.rjust(4, "0")
       strtime = time_utc.strftime( "%F" )
-      @container_name = "#{@@configuration[:azure_storage_container_prefix]}-#{strtime}"
+      @container_name = "#{AZURE_STORAGE_CONTAINER_LOGSTASH_PREFIX}#{@@configuration[:azure_storage_container_prefix]}-#{strtime}"
 
       strtime = time_utc.strftime( "%F-%H-%M-%S-%L" )
-      @blob_name = "#{@@configuration[:azure_storage_blob_prefix]}_ikey-#{@intrumentation_key}_table-#{@table_id}_id-#{id}_#{strtime}.#{@event_format_ext}"
+      # @blob_name = "#{@@configuration[:azure_storage_blob_prefix]}_ikey-#{@instrumentation_key}_table-#{@table_id}_id-#{id}_#{strtime}.#{@event_format_ext}"
+      @blob_name = "#{AZURE_STORAGE_BLOB_LOGSTASH_PREFIX}#{@@configuration[:azure_storage_blob_prefix]}/ikey-#{@instrumentation_key}/table-#{@table_id}/#{strtime}_#{id}.#{@event_format_ext}"
     end
 
 
@@ -898,17 +900,17 @@ class LogStash::Outputs::Application_insights
         :ver  => @@configuration[:notification_version], 
         :name => REQUEST_NAME,
         :time => Time.now.utc.iso8601,
-        :iKey => @intrumentation_key
+        :iKey => @instrumentation_key
       }
       notification_hash.to_json
     end 
 
 
     def post_notification ( http_client, body )
-      request = Azure::Core::Http::HttpRequest.new( :post, @@configuration[:notification_endpoint], { :body => body, :client => http_client } )
+      request = Azure::Core::Http::HttpRequest.new( :post, @@configuration[:application_insights_endpoint], { :body => body, :client => http_client } )
       request.headers['Content-Type'] = 'application/json; charset=utf-8'
       request.headers['Accept'] = 'application/json'
-      @@logger.debug { "send notification : \n    endpoint: #{@@configuration[:notification_endpoint]}\n    body : #{body}" }
+      @@logger.debug { "send notification : \n    endpoint: #{@@configuration[:application_insights_endpoint]}\n    body : #{body}" }
       response = request.call
     end 
 

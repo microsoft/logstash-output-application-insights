@@ -26,7 +26,8 @@ class LogStash::Outputs::Application_insights
       :notification_version => @notification_version || DEFAULT_NOTIFICATION_VERSION,
       :event_separator => @event_separator || DEFAULT_EVENT_SEPARATOR,
 
-      :notification_endpoint => @notification_endpoint || DEFAULT_NOTIFICATION_ENDPOINT,
+      :azure_storage_host_suffix => @azure_storage_host_suffix || DEFAULT_AZURE_STORAGE_HOST_SUFFIX, 
+      :application_insights_endpoint => @application_insights_endpoint || DEFAULT_APPLICATION_INSIGHTS_ENDPOINT,
       :azure_storage_blob_prefix => @azure_storage_blob_prefix || DEFAULT_AZURE_STORAGE_BLOB_PREFIX || Utils.to_storage_name( Socket.gethostname.strip ) || "",
       :azure_storage_container_prefix => @azure_storage_container_prefix || DEFAULT_AZURE_STORAGE_CONTAINER_PREFIX || Utils.to_storage_name( Socket.gethostname.strip ) || "",
       :azure_storage_table_prefix => @azure_storage_table_prefix || DEFAULT_AZURE_STORAGE_TABLE_PREFIX || Utils.to_storage_name( Socket.gethostname.strip ) || "",
@@ -61,7 +62,7 @@ class LogStash::Outputs::Application_insights
 
       :tables => @tables || {  },
       :table_id => @table_id || DEFAULT_TABLE_ID,
-      :intrumentation_key => @intrumentation_key || DEFAULT_INSTRUMENTATION_KEY,
+      :instrumentation_key => @instrumentation_key || DEFAULT_INSTRUMENTATION_KEY,
       :table_columns => @table_columns,
       :case_insensitive_columns => @case_insensitive_columns || DEFAULT_CASE_INSENSITIVE,
       :serialized_event_field => @serialized_event_field,
@@ -135,12 +136,13 @@ class LogStash::Outputs::Application_insights
   MIN_FLOW_CONTROL_DELAY = 0.1                            # in seconds, 1 seconds, can be less than 1 seconds, like 0.5, 0.1
   MAX_FLOW_CONTROL_DELAY = 0                              # in seconds, 1 seconds, can be less than 1 seconds, like 0.5, 0.1
 
-  METADATA_FIELD_INSTRUMENTATION_KEY = "[@metadata]intrumentation_key"
+  METADATA_FIELD_INSTRUMENTATION_KEY = "[@metadata]instrumentation_key"
   METADATA_FIELD_TABLE_ID = "[@metadata]table_id"
-  FIELD_INSTRUMENTATION_KEY = "intrumentation_key"
+  FIELD_INSTRUMENTATION_KEY = "instrumentation_key"
   FIELD_TABLE_ID = "table_id"
 
   STATE_TABLE_NAME = "BlobsState"
+  STORAGE_TEST_CONTAINER_NAME = "test-container"
 
   AZURE_STORAGE_CONTAINER_LOGSTASH_PREFIX = "logstash" # lower case only, dash allowed
   AZURE_STORAGE_BLOB_LOGSTASH_PREFIX = "logstash"
@@ -181,7 +183,8 @@ class LogStash::Outputs::Application_insights
   DEFAULT_BLOB_RETENTION_TIME = 60 * 60 * 24 * 7      # in seconds - one week
   DEFAULT_BLOB_ACCESS_EXPIRY_TIME = 60 * 60 * 24 * 1  # in seconds - one day
   DEFAULT_STORAGE_RESURRECT_DELAY = 10
-  DEFAULT_NOTIFICATION_ENDPOINT = "https://dc.services.visualstudio.com/v2/track"
+  DEFAULT_APPLICATION_INSIGHTS_ENDPOINT = "https://dc.services.visualstudio.com/v2/track"
+  DEFAULT_AZURE_STORAGE_HOST_SUFFIX = "core.windows.net"
   DEFAULT_NOTIFICATION_VERSION = 1
   DEFAULT_DISABLE_NOTIFICATION = false
   DEFAULT_DISABLE_BLOB_UPLOAD = false

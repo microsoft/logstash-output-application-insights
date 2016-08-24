@@ -22,7 +22,7 @@
 class LogStash::Outputs::Application_insights
   class Channel
 
-    attr_reader :intrumentation_key
+    attr_reader :instrumentation_key
     attr_reader :table_id
     attr_reader :failed_on_upload_retry_Q
     attr_reader :failed_on_notify_retry_Q
@@ -31,14 +31,14 @@ class LogStash::Outputs::Application_insights
 
     public
 
-    def initialize ( intrumentation_key, table_id )
+    def initialize ( instrumentation_key, table_id )
       @closing = false
       configuration = Config.current
 
       @logger = configuration[:logger]
 
-      @logger.debug { "Create a new channel, intrumentation_key / table_id : #{intrumentation_key} / #{table_id}" }
-      @intrumentation_key = intrumentation_key
+      @logger.debug { "Create a new channel, instrumentation_key / table_id : #{instrumentation_key} / #{table_id}" }
+      @instrumentation_key = instrumentation_key
       @table_id = table_id
       set_table_properties( configuration )
       @semaphore = Mutex.new

@@ -49,7 +49,7 @@ filter {
 }
 output {
   application_insights {
-    intrumentation_key => "5a6714a3-ec7b-4999-ab96-232f1da92059"
+    instrumentation_key => "5a6714a3-ec7b-4999-ab96-232f1da92059"
     table_id => "c24394e1-f077-420e-8a25-ef6fdf045938"
     storage_account_name_key => [ "my-storage-account", "pfrYTwPgKyYNfKBY2QdF+v5sbgx8/eAQp+FFkGpPBnkMDE1k+ZNK3r3qIPqqw8UsOIUqaF3dXBdPDouGJuxNXQ==" ]
   }
@@ -147,12 +147,12 @@ example:
 azure_storage_blob_prefix => "myprefix"
 ```
 
-### intrumentation_key
-Default Application Insights Analytics intrumentation_key. No default
+### instrumentation_key
+Default Application Insights Analytics instrumentation_key. No default
 It will be used only in case the key is not specified in the tables property associated to a table_id, or as field or metadata fields in the event
 example:
 ```ruby
-intrumentation_key => "5A6714A3-EC7B-4999-AB96-232F1DA92059"
+instrumentation_key => "5A6714A3-EC7B-4999-AB96-232F1DA92059"
 ```
 
 ### table_id
@@ -404,22 +404,32 @@ example:
 stop_on_unknown_io_errors => true
 ```
 
-### notification_endpoint
-when set notification are sent to an alternative endpoint. Default "https://dc.services.visualstudio.com/v2/track"
-Used for troubleshooting
+### azure_storage_host_suffix
+when set an alternative storage service will be used. Default "core.windows.net"
 example:
 ```ruby
-stop_on_unknown_io_errors => true
+azure_storage_host_suffix => "core.windows.net"
+```
+
+### application_insights_endpoint
+when set blob ready notification are sent to an alternative endpoint. Default "https://dc.services.visualstudio.com/v2/track"
+example:
+```ruby
+application_insights_endpoint => "https://dc.services.visualstudio.com/v2/track"
 ```
 
 ### notification_version
 Advanced, internal, should not be set, the only current valid value is 1
+example:
+```ruby
+notification_version => 1
+```
 
 ### tables
 Allow to support multiple tables, and to configure each table with its own parameters, using the global parameters as defaults.
 It is only required if the plugin need to support mutiple table.
 Tables is Hash, where the key is the table_id and the value is a has of specific properties, that their defualt value are the global properties.
-The specific properties are: intrumentation_key, table_columns, blob_max_delay, csv_default_value, serialized_event_field, blob_serialization, csv_separator
+The specific properties are: instrumentation_key, table_columns, blob_max_delay, csv_default_value, serialized_event_field, blob_serialization, csv_separator
 template:
 ```ruby
 tables => { "table_id1" => { properties } "table_id2" => { properties } }
@@ -427,12 +437,12 @@ tables => { "table_id1" => { properties } "table_id2" => { properties } }
 
 Examples:
 ```ruby
-tables => { "6f29a89e-1385-4317-85af-3ac1cea48058" => { "intrumentation_key" => "76c3b8e9-dfc6-4afd-8d4c-3b02fdadb19f", "blob_max_delay" => 60 } }
+tables => { "6f29a89e-1385-4317-85af-3ac1cea48058" => { "instrumentation_key" => "76c3b8e9-dfc6-4afd-8d4c-3b02fdadb19f", "blob_max_delay" => 60 } }
 ```
 
 ```ruby
-tables => { "6f29a89e-1385-4317-85af-3ac1cea48058" => { "intrumentation_key" => "76c3b8e9-dfc6-4afd-8d4c-3b02fdadb19f", "blob_max_delay" => 60 }
-            "2e1b46aa-56d2-4e13-a742-d0db516d66fc" => { "intrumentation_key" => "76c3b8e9-dfc6-4afd-8d4c-3b02fdadb19f", "blob_max_delay" => 120 "ext" => "csv" "serialized_event_field" => "message" } 
+tables => { "6f29a89e-1385-4317-85af-3ac1cea48058" => { "instrumentation_key" => "76c3b8e9-dfc6-4afd-8d4c-3b02fdadb19f", "blob_max_delay" => 60 }
+            "2e1b46aa-56d2-4e13-a742-d0db516d66fc" => { "instrumentation_key" => "76c3b8e9-dfc6-4afd-8d4c-3b02fdadb19f", "blob_max_delay" => 120 "ext" => "csv" "serialized_event_field" => "message" } 
           }
 ```
 

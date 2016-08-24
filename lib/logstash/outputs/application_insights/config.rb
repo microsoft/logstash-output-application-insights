@@ -79,26 +79,25 @@ class LogStash::Outputs::Application_insights
           configuration[config_name] = config_value
 
         when :azure_storage_container_prefix
-          azure_storage_container_prefix = validate_and_adjust( config_name, config_value, String )
-          unless azure_storage_container_prefix.empty?
-            len = 63 - "-#{AZURE_STORAGE_CONTAINER_LOGSTASH_PREFIX}-yyyy-mm-dd".length
+          unless config_value.empty?
+            azure_storage_container_prefix = validate_and_adjust( config_name, config_value, String )
+            len = 63 - "#{AZURE_STORAGE_CONTAINER_LOGSTASH_PREFIX}--yyyy-mm-dd".length
             validate_max( "azure_storage_container_prefix length", azure_storage_container_prefix.length, len )
-            azure_storage_container_prefix += "-"
+            azure_storage_container_prefix = azure_storage_container_prefix.downcase
+            container_name = "#{AZURE_STORAGE_CONTAINER_LOGSTASH_PREFIX}-#{azure_storage_container_prefix}-yyyy-mm-dd"
+            raise ConfigurationError, "#{config_name.to_s} must have only alphanumeric characters and dash, cannot start or end with a dash, and a dash cannot follow a dash" unless Utils.valid_container_name?( container_name )
+            configuration[config_name] = "-#{azure_storage_container_prefix}"
           end
-          azure_storage_container_prefix = azure_storage_container_prefix.downcase
-          container_name = "#{azure_storage_container_prefix}#{AZURE_STORAGE_CONTAINER_LOGSTASH_PREFIX}-yyyy-mm-dd"
-          raise ConfigurationError, "#{config_name.to_s} must have only alphanumeric and dash characters, cannot start or end with a dash, and a dash cannot follow a dash" unless Utils.valid_container_name?( container_name )
-          configuration[config_name] = azure_storage_container_prefix + AZURE_STORAGE_CONTAINER_LOGSTASH_PREFIX
 
-        when :azure_storage_azure_storage_table_prefix
-          azure_storage_table_prefix = validate_and_adjust( config_name, config_value, String )
-          unless azure_storage_table_prefix.empty?
-            len = 63 - "-#{AZURE_STORAGE_TABLE_LOGSTASH_PREFIX}yyyymmdd".length
+        when :azure_storage_table_prefix
+          unless config_value.empty?
+            azure_storage_table_prefix = validate_and_adjust( config_name, config_value, String )
+            len = 63 - "#{AZURE_STORAGE_TABLE_LOGSTASH_PREFIX}yyyymmdd".length
             validate_max( "azure_storage_table_prefix length", azure_storage_table_prefix.length, len )
+            table_name = "#{AZURE_STORAGE_TABLE_LOGSTASH_PREFIX}#{azure_storage_table_prefix}yyyymmdd"
+            raise ConfigurationError, "#{config_name} must have only alphanumeric" unless Utils.valid_table_name?( table_name )
+            configuration[config_name] = azure_storage_table_prefix
           end
-          table_name = "#{azure_storage_table_prefix}#{AZURE_STORAGE_TABLE_LOGSTASH_PREFIX}yyyymmdd"
-          raise ConfigurationError, "#{config_name} must have only alphanumeric" unless Utils.valid_table_name?( table_name )
-          configuration[config_name] = azure_storage_table_prefix + AZURE_STORAGE_TABLE_LOGSTASH_PREFIX
 
         when :ca_file
           config_value = validate_and_adjust( config_name, config_value, String )
@@ -107,17 +106,21 @@ class LogStash::Outputs::Application_insights
           end
           configuration[config_name] = validate_and_adjust( config_name, config_value, String )
 
-        when :azure_storage_blob_prefix
-          azure_storage_blob_prefix = validate_and_adjust( config_name, config_value, String )
-          unless azure_storage_blob_prefix.empty?
-            len = 1024 - "-#{AZURE_STORAGE_BLOB_LOGSTASH_PREFIX}_ikey-#{INSTRUMENTATION_KEY_TEMPLATE}_table-#{TABLE_ID_TEMPLATE}_yyyy-mm-dd-HH-MM-SS-LLL".length
-            validate_max( "azure_storage_blob_prefix length", azure_storage_blob_prefix.length, len )
-            azure_storage_blob_prefix += "-"
+        when :azure_storage_host_suffix
+          config_value = validate_and_adjust( config_name, config_value, String )
+          unless config_value.empty?
+            raise ConfigurationError, "#{config_name} must have a valid host DNS address" unless Utils.dns_address?( config_value )
           end
-          azure_storage_blob_prefix += AZURE_STORAGE_BLOB_LOGSTASH_PREFIX
+          configuration[config_name] = validate_and_adjust( config_name, config_value, String )
 
-          raise ConfigurationError, "#{config_name.to_s} doesn't meet url format" unless Utils.url?( "http://storage/container/#{azure_storage_blob_prefix}_ikey-#{INSTRUMENTATION_KEY_TEMPLATE}_table-#{TABLE_ID_TEMPLATE}.json" )
-          configuration[config_name] = azure_storage_blob_prefix
+        when :azure_storage_blob_prefix
+          unless config_value.empty?
+            azure_storage_blob_prefix = validate_and_adjust( config_name, config_value, String )
+            len = 1024 - "#{AZURE_STORAGE_BLOB_LOGSTASH_PREFIX}//ikey-#{INSTRUMENTATION_KEY_TEMPLATE}/table-#{TABLE_ID_TEMPLATE}/yyyy-mm-dd-HH-MM-SS-LLL_0000.json".length
+            validate_max( "azure_storage_blob_prefix length", azure_storage_blob_prefix.length, len )
+            raise ConfigurationError, "#{config_name.to_s} doesn't meet url format" unless Utils.url?( "http://storage/container/#{azure_storage_blob_prefix}_ikey-#{INSTRUMENTATION_KEY_TEMPLATE}_table-#{TABLE_ID_TEMPLATE}.json" )
+            configuration[config_name] = "/#{azure_storage_blob_prefix}"
+          end
 
         when :table_id
           configuration[config_name] = validate_and_adjust_guid( config_name, config_value )
@@ -220,8 +223,8 @@ class LogStash::Outputs::Application_insights
 
         case property_name.downcase
 
-        when :intrumentation_key
-          properties[:intrumentation_key] = validate_and_adjust_guid( info, property_value )
+        when :instrumentation_key
+          properties[:instrumentation_key] = validate_and_adjust_guid( info, property_value )
         when :blob_serialization
           property_value = property_value.downcase
           raise ConfigurationError, "#{info}, can be set to only one of the following values: #{VALID_EXT_EVENT_FORMAT}" unless VALID_EXT_EVENT_FORMAT.include?( property_value )
@@ -281,7 +284,7 @@ class LogStash::Outputs::Application_insights
     def self.validate_and_adjust_ext ( property, ext, prefix )
       ext = validate_and_adjust( property, ext, String )
       raise ConfigurationError, "#{property.to_s} must be a valid extension string, have only alphanumeric, dash and underline characters" unless Utils.ext?( ext )
-      len = 1024 - "#{prefix}-#{AZURE_STORAGE_BLOB_LOGSTASH_PREFIX}_ikey-#{INSTRUMENTATION_KEY_TEMPLATE}_table-#{TABLE_ID_TEMPLATE}_yyyy-mm-dd-HH-MM-SS-LLL".length
+      len = 1024 - "#{AZURE_STORAGE_BLOB_LOGSTASH_PREFIX}#{prefix}/ikey-#{INSTRUMENTATION_KEY_TEMPLATE}/table-#{TABLE_ID_TEMPLATE}/yyyy-mm-dd-HH-MM-SS-LLL_0000".length
       raise ConfigurationError, "#{property.to_s} length cannot be more than #{len} characters" unless ext.length <= len
       ext
     end

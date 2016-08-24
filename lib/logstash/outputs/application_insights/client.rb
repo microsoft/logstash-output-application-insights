@@ -98,12 +98,18 @@ class LogStash::Outputs::Application_insights
 
     def set_current_storage_account_client
       configuration = Config.current
-      alt_storage_access_key = @storage_account[:keys][@current_storage_account_key_index]
-      options = { :storage_account_name => @storage_account_name, :storage_access_key => alt_storage_access_key }
-      options[:ca_file] = configuration[:ca_file] unless configuration[:ca_file].empty?
-      @current_azure_storage_client = Azure::Storage::Client.new( options )
+      storage_access_key = @storage_account[:keys][@current_storage_account_key_index]
 
-      @current_azure_storage_auth_sas = Azure::Storage::Auth::SharedAccessSignature.new( @storage_account_name, alt_storage_access_key )
+      options = { 
+        :storage_account_name => @storage_account_name, 
+        :storage_access_key => storage_access_key,
+        :storage_blob_host => "https://#{@storage_account_name}.#{:blob}.#{configuration[:azure_storage_host_suffix]}",
+        :storage_table_host => "https://#{@storage_account_name}.#{:table}.#{configuration[:azure_storage_host_suffix]}"
+      }
+      options[:ca_file] = configuration[:ca_file] unless configuration[:ca_file].empty?
+
+      @current_azure_storage_client = Azure::Storage::Client.new( options )
+      @current_azure_storage_auth_sas = Azure::Storage::Auth::SharedAccessSignature.new( @storage_account_name, storage_access_key )
     end
 
   end

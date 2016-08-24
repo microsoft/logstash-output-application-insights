@@ -101,10 +101,10 @@ class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
   # string may include only characters that are allowed in any valid url
   config :azure_storage_blob_prefix, :validate => :string
   
-  # Default Application Insights Analytics intrumentation_key
+  # Default Application Insights Analytics instrumentation_key
   # will be used only in case it is not specified as a table_id property in tables
   # or as part of the event's fields or event's metadata fields
-  config :intrumentation_key, :validate => :string
+  config :instrumentation_key, :validate => :string
 
   # Default Application Insights Analytics table_id
   # will be used only in case it is not specified as part o
@@ -121,8 +121,8 @@ class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
   # A hash of table_ids, where each table_id points to a set of properties
   # the properties are a hash, where the keys are are the properties
   # current supported properties per table_id are:
-  # intrumentation_key, ext, table_columns, csv_default_value, csv_separator, blob_max_delay, event_separator, serialized_event_field
-  # intrumentation_key, Application Insights Analytics intrumentation_key, will be used in case not specified in any of the event's fields or events's metadata fileds
+  # instrumentation_key, ext, table_columns, csv_default_value, csv_separator, blob_max_delay, event_separator, serialized_event_field
+  # instrumentation_key, Application Insights Analytics instrumentation_key, will be used in case not specified in any of the event's fields or events's metadata fileds
   # serialized_event_field, specifies the field that may contain the full serialized event (either as json or csv), 
   #             when specified, the ext property should be set either to csv or to json (json is the default)
   #             if event. does not conatin the field, value will be created based on the fileds in the evnt, according to table_columns if configured, or all fileds in event
@@ -150,7 +150,7 @@ class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
   #                can be specified only together with table_columns
   #
   # Example json table_id
-  #   tables => {"a679fbd2-702c-4c46-8548-80082c66ef28" => {"intrumentation_key" => "abee940b-e648-4242-b6b3-f2826667bf96", "blob_max_delay" => 60} }
+  #   tables => {"a679fbd2-702c-4c46-8548-80082c66ef28" => {"instrumentation_key" => "abee940b-e648-4242-b6b3-f2826667bf96", "blob_max_delay" => 60} }
   # Example json table_id, input in serialized_event_field
   #   {"ab6a3584-aef0-4a82-8725-2f2336e59f3e" => {"serialized_event_field" => "message". "ext" => "json"} }
   # Example csv table_id, input in serialized_event_field
@@ -271,9 +271,11 @@ class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
   # When set to true, process will stop if an unknown IO error is found
   config :stop_on_unknown_io_errors, :validate => :boolean
 
-  # Advanced, internal, should not be set, the default is Application Insights production endpoint
   # when set notification are sent to an alternative endpoint, used for internal testing
-  config :notification_endpoint, :validate => :string
+  config :application_insights_endpoint, :validate => :string
+
+  # when set an alternative storage service will be used. 
+  config :azure_storage_host_suffix, :validate => :string
 
   # Advanced, internal, should not be set, the only current valid value is 1
   config :notification_version, :validate => :number
@@ -289,6 +291,9 @@ class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
   public
 
   def register
+
+    # logstash define: @original_params = original_params
+    # logstash define: @config = params
 
     # set configuration
     Config.validate_and_adjust_configuration( default_configuration )
@@ -306,6 +311,7 @@ class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
 
     Timer.config( configuration )
     Blob.config( configuration )
+
     Blob.validate_endpoint if @validate_endpoint
     Blob.validate_storage if @validate_storage
 
