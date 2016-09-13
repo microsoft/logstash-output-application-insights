@@ -3,7 +3,11 @@
 [![GitHub version](https://badge.fury.io/gh/microsoft%2Flogstash-output-application-insights.svg)](https://badge.fury.io/gh/microsoft%2Flogstash-output-application-insights)
 [![Gem Version](https://badge.fury.io/rb/logstash-output-application_insights.svg)](https://badge.fury.io/rb/logstash-output-application_insights)
 
-This project is a plugin for [Logstash](https://github.com/elastic/logstash).
+* This project is a plugin for [Logstash](https://github.com/elastic/logstash). 
+
+* This plugin have to be installed on top of the Logstash core pipeline. It is not a stand-alone program.
+
+* **This plugin outputs events to Microsoft Application Insights Analytics open schema tables.**
 
 # Plugin Features
 
@@ -358,11 +362,11 @@ example:
 ```ruby
 delete_not_notified_blobs => true
 ```
-### validate_endpoint
+### validate_notification
 When set to true, access to application insights will be validated at initialization and if validation fail, logstash process will abort. Default false
 example:
 ```ruby
-validate_endpoint => true
+validate_notification => true
 ```
 
 ### validate_storage
