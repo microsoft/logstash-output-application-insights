@@ -1,6 +1,5 @@
 # Microsoft Application Insights Output Plugin for Logstash
-
-[![GitHub version](https://badge.fury.io/gh/microsoft%2Flogstash-output-application-insights.svg)](https://badge.fury.io/gh/microsoft%2Flogstash-output-application-insights)
+[![GitHub version](https://badge.fury.io/gh/Microsoft%2Flogstash-output-application-insights.svg)](https://badge.fury.io/gh/Microsoft%2Flogstash-output-application-insights)
 [![Gem Version](https://badge.fury.io/rb/logstash-output-application_insights.svg)](https://badge.fury.io/rb/logstash-output-application_insights)
 
 * This project is a plugin for [Logstash](https://github.com/elastic/logstash). 
