@@ -48,7 +48,10 @@ class LogStash::Outputs::Application_insights
       end
       display_msg( "all events were uploaded to Azure storage" )
 
+      # close all blobs activity
       Blob.close
+
+      # close all channels activity
       @channels.close
 
       # wait for all uploads to commit

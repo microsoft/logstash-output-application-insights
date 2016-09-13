@@ -54,6 +54,12 @@ class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
   require "logstash/outputs/application_insights/blob" 
   autoload :Block, "logstash/outputs/application_insights/block"
   autoload :Storage_cleanup, "logstash/outputs/application_insights/storage_cleanup"
+  autoload :Shutdown_recovery, "logstash/outputs/application_insights/shutdown_recovery"
+  autoload :Storage_recovery, "logstash/outputs/application_insights/storage_recovery"
+  autoload :Notification_recovery, "logstash/outputs/application_insights/notification_recovery"
+  autoload :Validate_storage, "logstash/outputs/application_insights/validate_storage"
+  autoload :Validate_notification, "logstash/outputs/application_insights/validate_notification"
+  
 
   autoload :Clients, "logstash/outputs/application_insights/clients" 
   autoload :Client, "logstash/outputs/application_insights/client" 
@@ -282,11 +288,11 @@ class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
 
   # When set to true, access to application insights will be validated at initialization
   # and if validation fail, logstash process will abort
-  config :validate_endpoint, :validate => :boolean, :default => true
+  config :validate_notification, :validate => :boolean
 
   # When set to true, access to azure storage for each of the configured accounts will be validated at initialization
   # and if validation fail, logstash process will abort
-  config :validate_storage, :validate => :boolean, :default => true
+  config :validate_storage, :validate => :boolean
 
   public
 
@@ -310,10 +316,27 @@ class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
     configuration[:telemetry_channel] = @telemetry.telemetry_channel
 
     Timer.config( configuration )
-    Blob.config( configuration )
 
-    Blob.validate_endpoint if @validate_endpoint
-    Blob.validate_storage if @validate_storage
+    if @validate_notification
+      status = Validate_notification.new.validate
+      raise ConfigurationError, "Failed to access application insights at #{configuration[:application_insights_endpoint]}, due to error #{status[:error].inspect}" unless status[:success]
+    end
+
+    if @validate_storage
+      result = Validate_storage.new.validate
+      result.each do |storage_account_name, status|
+        raise ConfigurationError, "Failed access azure storage account #{storage_account_name}, due to error #{status[:error].inspect}" unless status[:success]
+      end
+    end
+
+    @notification_recovery = Notification_recovery.instance
+    @notification_recovery.start
+
+    @storage_recovery = Storage_recovery.instance
+    @storage_recovery.start
+
+    @shutdown_recovery = Shutdown_recovery.instance
+    @shutdown_recovery.start
 
     @shutdown = Shutdown.instance
     @channels = Channels.instance
@@ -326,7 +349,7 @@ class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
     #   @channels.receive( event, encoded_event )
     # end
 
-    Telemetry.instance.track_event("register", {:properties => configuration})
+    @telemetry.track_event("register", {:properties => configuration})
 
 
     return "ok\n"
@@ -340,60 +363,16 @@ class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
   end
 
   def close
-    Telemetry.instance.track_event( "close" )
-    Telemetry.instance.flush
+    @telemetry.track_event( "close" )
+    @telemetry.flush
+    @shutdown_recovery.close
+    @storage_recovery.close
+    @notification_recovery.close
     @shutdown.submit
   end
 
   private
 
   # -----------------------------------------------
-
-
-  def list_blob_names
-    blob_names = Set.new []
-    loop do
-      continuation_token = NIL
-      entries = @azure_blob.list_blobs(@container, { :timeout => 10, :marker => continuation_token})
-      @@logger.debug { 'blob entries: #{entries}' }
-      entries.each do |entry|
-        @@logger.debug { 'blob entry name: #{entry.name}' }
-        blob_names << entry.name
-      end
-      continuation_token = entries.continuation_token
-      break if continuation_token.empty?
-    end
-    return blob_names
-  end # def list_blobs
-
-
-  def list_container_names
-    container_names = Set.new []
-    loop do
-      continuation_token = NIL
-      containers = @azure_blob.list_containers()
-      @@logger.debug { 'containers: #{containers}' }
-      containers.each do |container|
-        @@logger.debug { 'container entry name:' + container.name }
-        container_names << container.name
-        upload(container.name, "blob-append-" + container.name, "test - " + container.name)
-        blobs = @azure_blob.list_blobs(container.name)
-        blobs.each do |blob|
-          @@logger.debug { 'blob name: ' + blob.name }
-        end
-      end
-      continuation_token = containers.continuation_token
-      break if continuation_token.empty?
-    end
-    return container_names
-  end # def list_blobs
-
-  def create_container (container_name)
-    begin
-      @azure_blob.create_container(container_name)
-    rescue
-      @@logger.debug { $! }
-    end
-  end
 end
 

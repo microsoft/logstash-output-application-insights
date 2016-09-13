@@ -27,7 +27,7 @@ Gem::Specification.new do |s|
   s.version       = APPLICATION_INSIGHTS_VERSION
   s.licenses      = ['Apache License (2.0)']
   s.summary       = "Microsoft Application Insights openschema Logstash output plugin. 'Output events to Application Insights"
-  s.description   = "Outputs events to Microsoft Application Insights Analytics. This gem is a Logstash output plugin required to be installed on top of the Logstash core pipeline using $LS_HOME/bin/logstash-plugin install gemname. This gem is not a stand-alone program"
+  s.description   = "Outputs events to Microsoft Application Insights Analytics open schema tables. This gem is a Logstash output plugin required to be installed on top of the Logstash core pipeline using $LS_HOME/bin/logstash-plugin install gemname. This gem is not a stand-alone program"
   s.authors       = ["Microsoft Corporation"]
   s.email         = "info@microsoft.com"
   s.homepage      = "https://github.com/Microsoft/logstash-output-application-insights"

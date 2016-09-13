@@ -203,6 +203,10 @@ class LogStash::Outputs::Application_insights
         end
       }
       validate_and_adjust_table_properties!( configuration, configuration )
+
+      configuration[:state_table_name] = "#{AZURE_STORAGE_TABLE_LOGSTASH_PREFIX}#{configuration[:azure_storage_table_prefix]}#{STATE_TABLE_NAME}"
+      configuration[:test_storage_container] = "#{AZURE_STORAGE_CONTAINER_LOGSTASH_PREFIX}#{configuration[:azure_storage_container_prefix]}-#{STORAGE_TEST_CONTAINER_NAME}"
+      configuration[:partition_key_prefix] = configuration[:azure_storage_blob_prefix].gsub( "/", "" )
       @@configuration = configuration
     end
 

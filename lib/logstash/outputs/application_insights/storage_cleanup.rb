@@ -90,7 +90,7 @@ class LogStash::Outputs::Application_insights
       @info  = "#{@action} #{@storage_account_name}"
 
       containers = nil
-      success =  storage_io_block( proc do |reason, e| end ) {
+      success =  storage_io_block {
         options = { :metadata => true }
         options[:marker] = token if token
         options[:prefix] = azure_storage_container_prefix if azure_storage_container_prefix
@@ -140,7 +140,7 @@ class LogStash::Outputs::Application_insights
       @recoverable = [ :invalid_storage_key, :io_failure, :service_unavailable, :blob_exit, :create_container, :container_exist ]
       @info  = "#{@action} #{@storage_account_name}/#{container_name}/#{blob_name}"
       tuple = nil
-      success =  storage_io_block( proc do |reason, e| end ) {
+      success =  storage_io_block {
         create_exist_recovery( :container, @not_notified_container ) { |name| @client.blobClient.create_container( name ) }
         if :blob_exit == @recovery
           tuple = ["", :pending]
@@ -157,7 +157,7 @@ class LogStash::Outputs::Application_insights
       @recoverable = [ :invalid_storage_key, :io_failure, :service_unavailable, :create_resource, :create_container, :container_exist ]
       @info  = "#{@action} #{@storage_account_name}/#{@not_notified_container}/#{blob_name}"
       status = nil
-      success =  storage_io_block( proc do |reason, e| end ) {
+      success =  storage_io_block {
         create_exist_recovery( :container, @not_notified_container ) { |name| @client.blobClient.create_container( name ) }
         if :create_resource == @recovery
           status = :not_started
@@ -194,7 +194,7 @@ class LogStash::Outputs::Application_insights
       @recoverable = [ :invalid_storage_key, :io_failure, :service_unavailable, :create_container ]
       @info  = "#{@action} #{@storage_account_name}/#{container_name}"
 
-      success =  storage_io_block( proc do |reason, e| end ) {
+      success =  storage_io_block {
         # delete container, if not found, skip
         containers = @client.blobClient.delete_container( container_name )  unless :create_container == @recovery
       }

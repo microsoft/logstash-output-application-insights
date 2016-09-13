@@ -44,6 +44,9 @@ class LogStash::Outputs::Application_insights
       :blob_retention_time => @blob_retention_time || DEFAULT_BLOB_RETENTION_TIME,
       :blob_access_expiry_time => @blob_access_expiry_time || DEFAULT_BLOB_ACCESS_EXPIRY_TIME,
 
+      :validate_notification => @validate_notification || DEFAULT_VALIDATE_NOTIFICATION,
+      :validate_storage => @validate_storage || DEFAULT_VALIDATE_STORAGE,
+
       :resurrect_delay => @resurrect_delay || DEFAULT_STORAGE_RESURRECT_DELAY,
       :io_retry_delay => @io_retry_delay || DEFAULT_IO_RETRY_DELAY,
       :io_max_retries => @io_max_retries || DEFAULT_IO_MAX_RETRIES,
@@ -76,7 +79,8 @@ class LogStash::Outputs::Application_insights
 
   BOOLEAN_PROPERTIES = [  :disable_notification, :disable_blob_upload, 
                           :stop_on_unknown_io_errors, :disable_telemetry, 
-                          :disable_cleanup, :delete_not_notified_blobs, 
+                          :disable_cleanup, :delete_not_notified_blobs,
+                          :validate_notification, :validate_storage,
                           :save_notified_blobs_records, :case_insensitive_columns,
                           :table_columns, :serialized_event_field ]
 
@@ -195,6 +199,9 @@ class LogStash::Outputs::Application_insights
   DEFAULT_SAVE_NOTIFIED_BLOBS_RECORDS = false
   
   DEFAULT_CASE_INSENSITIVE = false
+
+  DEFAULT_VALIDATE_NOTIFICATION = false
+  DEFAULT_VALIDATE_STORAGE = false
 
   DEFAULT_LOGGER_FILES = [ "logstash-output-application-insights.log" ]
   DEFAULT_LOG_LEVEL = "INFO"

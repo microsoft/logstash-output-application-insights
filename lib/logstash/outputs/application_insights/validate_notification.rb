@@ -19,6 +19,19 @@
 # permissions and limitations under the License.
 # ----------------------------------------------------------------------------------
 
-# class LogStash::Outputs::Application_insights
-  APPLICATION_INSIGHTS_VERSION ||= "0.1.4"
-# end
+class LogStash::Outputs::Application_insights
+  class Validate_notification < Blob
+
+    public
+
+    def initialize
+      # super first parameter must be nil. blob first parameter is channel, otherwise it will pass storage_account_name as channel
+      super( nil )
+      @storage_account_name_key = @configuration[:storage_account_name_key]
+    end
+
+    def validate
+      {:success => test_notification( @storage_account_name_key[0][0] ), :error => @last_io_exception }
+    end
+  end
+end
