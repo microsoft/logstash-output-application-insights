@@ -253,8 +253,8 @@ class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
   config :ca_file, :validate => :string
 
 
-  # When set to true, telemetry about the plugin, won't be sent to Application Insights
-  config :disable_telemetry, :validate => :boolean
+  # When set to true, telemetry about the plugin, will't be sent to Microsoft. Deafult false
+  config :enable_telemetry_to_microsoft, :validate => :boolean
 
   # When set to true, storage cleanup won't be done by the plugin (should be done by some other means or by another Logstash process with this flag enabled)
   config :disable_cleanup, :validate => :boolean
@@ -349,7 +349,7 @@ class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
     #   @channels.receive( event, encoded_event )
     # end
 
-    @telemetry.track_event("register", {:properties => configuration})
+    @telemetry.track_event { { :name => "register", :properties => configuration } }
 
 
     return "ok\n"
@@ -363,7 +363,7 @@ class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
   end
 
   def close
-    @telemetry.track_event( "close" )
+    @telemetry.track_event { { :name => "close" } }
     @telemetry.flush
     @shutdown_recovery.close
     @storage_recovery.close

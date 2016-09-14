@@ -79,8 +79,6 @@ class LogStash::Outputs::Application_insights
       display_msg( "all events were notified to Application Insights Analytics" )
     end
 
-    private
-
     def display_msg ( msg )
         puts "+++ #{@logger_progname} #{msg}"
         # @logger.info { "#{msg}" }

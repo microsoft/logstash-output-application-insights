@@ -48,13 +48,16 @@ input {
   }
 }
 filter {
-  # some filters here
+    # some filters here
 }
 output {
   application_insights {
     instrumentation_key => "5a6714a3-ec7b-4999-ab96-232f1da92059"
     table_id => "c24394e1-f077-420e-8a25-ef6fdf045938"
     storage_account_name_key => [ "my-storage-account", "pfrYTwPgKyYNfKBY2QdF+v5sbgx8/eAQp+FFkGpPBnkMDE1k+ZNK3r3qIPqqw8UsOIUqaF3dXBdPDouGJuxNXQ==" ]
+      #
+      # if you want to allow Microsoft get telemtry data about this process please set it to true
+    enable_telemetry_to_microsoft => false
   }
 }
 ```
@@ -341,11 +344,12 @@ example:
 ca_file => "/path/to/cafile.crt"
 ```
 
-### disable_telemetry
-When set to true, telemetry about the plugin, won't be sent to Application Insights. Deafult false
+### enable_telemetry_to_microsoft
+When set to true, telemetry about the plugin, will't be sent to Microsoft. Deafult false
+**Only if you want to allow Microsoft get telemtry data about this process set it to true**
 example:
 ```ruby
-disable_telemetry => true
+enable_telemetry_to_microsoft => true
 ```
 
 ### disable_cleanup

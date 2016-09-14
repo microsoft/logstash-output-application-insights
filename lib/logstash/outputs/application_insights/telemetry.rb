@@ -30,8 +30,8 @@ class LogStash::Outputs::Application_insights
 
     def initialize
       configuration = Config.current
-      @disable_telemetry = configuration[:disable_telemetry]
-      unless @disable_telemetry
+      @enable_telemetry_to_microsoft = configuration[:enable_telemetry_to_microsoft]
+      if @enable_telemetry_to_microsoft
         @telemetry_channel = create_async_channel( LOGSTASH_TELEMETRY_INSTRUMENTATION_KEY )
         set_async_channel_properties( @telemetry_channel )
         set_channel_context( @telemetry_channel )
@@ -69,16 +69,33 @@ class LogStash::Outputs::Application_insights
       # tc.context.user.id = 'santa@northpole.net'
     end
 
-    def track_event ( name, options={} )
-       @telemetry_channel.track_event( name, options ) unless @disable_telemetry
+    def track_event
+      if @enable_telemetry_to_microsoft
+        options = yield
+        name = options.delete( :name )
+        @telemetry_channel.track_event( name, options )
+      end
     end
 
-    def track_metric ( name, value, options={} )
-       @telemetry_channel.track_metric( name, value, options ) unless @disable_telemetry
+    def track_metric
+      if @enable_telemetry_to_microsoft
+        options = yield
+        name = options.delete( :name )
+        value = options.delete( :value )
+        @telemetry_channel.track_metric( name, value, options )
+      end
     end
 
-    def track_request (id, start_time, duration, response_code, success, options = {} )
-      @telemetry_channel.track_request( id, start_time, duration, response_code, success, options ) unless @disable_telemetry
+    def track_request
+      if @enable_telemetry_to_microsoft
+        options = yield
+        id = options.delete( :id )
+        start_time = options.delete( :start_time )
+        duration = options.delete( :duration )
+        response_code = options.delete( :response_code )
+        success = options.delete( :success )
+        @telemetry_channel.track_request( id, start_time, duration, response_code, success, options )
+      end
     end
 
     def flush

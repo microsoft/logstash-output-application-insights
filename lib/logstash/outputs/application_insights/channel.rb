@@ -46,7 +46,6 @@ class LogStash::Outputs::Application_insights
       @failed_on_notify_retry_Q = Queue.new
       @workers_channel = {  }
       @active_blobs = [ Blob.new( self, 1 ) ]
-      @state = State.instance
 
       launch_upload_recovery_thread
       launch_notify_recovery_thread
@@ -137,20 +136,29 @@ class LogStash::Outputs::Application_insights
     end
 
 
-    # thread that failed to notify due to Application Isights error, such as wrong key or wrong schema
+    # thread that failed to notify due to Application Insights error, such as wrong key or wrong schema
     def launch_notify_recovery_thread
       #recovery thread
       Thread.new do
         loop do
-          tuple ||= @failed_on_notify_retry_Q.pop
+          tuple = @failed_on_notify_retry_Q.pop
           begin
             Stud.stoppable_sleep( 60 ) { stopped? }
           end until Clients.instance.storage_account_state_on? || stopped?
+
           if  stopped?
+            @state ||= State.instance
             @state.dec_pending_notifications
+            @shutdown ||= Shutdown.instance
+            @shutdown.display_msg("!!! notification won't recover in this session due to shutdown")
           else
-            Blob.new.notify( tuple )
+            success = Blob.new.notify( tuple )
+            while success && @failed_on_notify_retry_Q.length > 0
+              tuple = @failed_on_notify_retry_Q.pop
+              success = Blob.new.notify( tuple )
+            end
           end
+          tuple = nil # release for GC
         end
       end
     end

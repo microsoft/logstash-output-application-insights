@@ -39,7 +39,14 @@ class LogStash::Outputs::Application_insights
 
     def recover_later ( tuple )
       @notification_state_on = false
-      @queue << tuple
+      if stopped?
+        @state ||= State.instance
+        @state.dec_pending_notifications
+        @shutdown ||= Shutdown.instance
+        @shutdown.display_msg("!!! notification won't recover in this session due to shutdown")
+      else
+        @queue << tuple
+      end
     end
 
     def enqueue ( tuple )
@@ -57,14 +64,6 @@ class LogStash::Outputs::Application_insights
       @closing
     end
 
-    def init_queues ( storage_account_name_key, queues )
-      storage_account_name_key.each do |storage_account_name, storage_account_keys|
-        queues.each_key do |action|
-          queues[action][storage_account_name] = Queue.new
-        end
-      end
-    end
-
     def recovery_thread
       Thread.new do
         blob = Blob.new
@@ -72,12 +71,16 @@ class LogStash::Outputs::Application_insights
 
         loop do
           tuple = @queue.pop
-          Stud.stoppable_sleep(Float::INFINITY, 1) { state_on?( blob ) && 10 > counter.value }
+          Stud.stoppable_sleep(Float::INFINITY, 1) { ( state_on?( blob ) || stopped? ) && 10 > counter.value }
 
-          counter.increment
-          Thread.new( counter, tuple ) do |counter, tuple|
-            Blob.new.send( :notify, tuple )
-            counter.decrement
+          if stopped? && !state_on?( blob )
+            recover_later( tuple )
+          else
+            counter.increment
+            Thread.new( counter, tuple ) do |counter, tuple|
+              Blob.new.notify( tuple )
+              counter.decrement
+            end
           end
           tuple = nil # release for GC
         end

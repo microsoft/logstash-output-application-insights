@@ -43,8 +43,17 @@ class LogStash::Outputs::Application_insights
       end
     end
 
-    def recover_later ( tuple, action, storage_account_name )
-      @queues[action][storage_account_name] << tuple
+    def recover_later ( tuple, action = nil, storage_account_name = nil )
+      if stopped?
+        if :commit == action
+          @state ||= State.instance
+          @state.dec_pending_commits
+          @shutdown ||= Shutdown.instance
+          @shutdown.display_msg("!!! commit won't recover in this session due to shutdown")
+        end
+      else
+        @queues[action][storage_account_name] << tuple
+      end
     end
 
     def close
@@ -75,12 +84,16 @@ class LogStash::Outputs::Application_insights
         queue = @queues[action][storage_account_name]
         loop do
           tuple = queue.pop
-          Stud.stoppable_sleep(Float::INFINITY, 1) { state_on?( storage_account_name ) && 10 > counter.value }
+          Stud.stoppable_sleep(Float::INFINITY, 1) { ( state_on?( storage_account_name )  || stopped? ) && 10 > counter.value }
 
-          counter.increment
-          Thread.new( action, counter, tuple ) do |action, counter, tuple|
-            Blob.new.send( action, tuple )
-            counter.decrement
+          if stopped? && !state_on?( storage_account_name )
+            recover_later( tuple )
+          else
+            counter.increment
+            Thread.new( action, counter, tuple ) do |action, counter, tuple|
+              Blob.new.send( action, tuple )
+              counter.decrement
+            end
           end
           tuple = nil # release for GC
         end

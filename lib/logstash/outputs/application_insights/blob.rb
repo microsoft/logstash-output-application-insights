@@ -259,6 +259,7 @@ class LogStash::Outputs::Application_insights
       end
     end
 
+    # must return whether notification was successful or failed
     def notify ( tuple = nil )
       tuple_to_state( tuple ) if tuple
       @action = :notify
@@ -275,10 +276,12 @@ class LogStash::Outputs::Application_insights
         @log_state = :notified
       }
       if success
+        Telemetry.instance.track_event { { :name => "notified", :properties => state_to_table_entity } }
         state_table_update
       else
         notify_retry_later
       end
+      success
     end
 
     CREATE_EXIST_ERRORS = { :container => [ :create_container, :container_exist ], :table => [ :create_table, :table_exist ] }
@@ -473,7 +476,6 @@ class LogStash::Outputs::Application_insights
           @block_to_upload = nil
           State.instance.inc_pending_commits if first_block_in_blob
           State.instance.dec_upload_bytesize( bytesize )
-          Telemetry.instance.track_event("uploading", {:properties => state_to_table_entity})
         }
 
         upload_retry_later unless success

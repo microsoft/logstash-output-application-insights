@@ -37,7 +37,7 @@ class LogStash::Outputs::Application_insights
       :stop_on_unknown_io_errors => @stop_on_unknown_io_errors || DEFAULT_STOP_ON_UNKNOWN_IO_ERRORS,
       :delete_not_notified_blobs => @delete_not_notified_blobs || DEFAULT_DELETE_NOT_NOTIFIED_BLOBS,
       :save_notified_blobs_records => @save_notified_blobs_records || DEFAULT_SAVE_NOTIFIED_BLOBS_RECORDS,
-      :disable_telemetry => @disable_telemetry || DEFAULT_DISABLE_TELEMETRY,
+      :enable_telemetry_to_microsoft => @enable_telemetry_to_microsoft || DEFAULT_ENABLE_TELEMETRY_TO_MICROSOFT,
       :disable_cleanup => @disable_cleanup || DEFAULT_DISABLE_CLEANUP,
       :blob_max_bytesize => @blob_max_bytesize || DEFAULT_BLOB_MAX_BYTESIZE,
       :blob_max_events => @blob_max_events || DEFAULT_BLOB_MAX_EVENTS,
@@ -78,7 +78,7 @@ class LogStash::Outputs::Application_insights
   end
 
   BOOLEAN_PROPERTIES = [  :disable_notification, :disable_blob_upload, 
-                          :stop_on_unknown_io_errors, :disable_telemetry, 
+                          :stop_on_unknown_io_errors, :enable_telemetry_to_microsoft, 
                           :disable_cleanup, :delete_not_notified_blobs,
                           :validate_notification, :validate_storage,
                           :save_notified_blobs_records, :case_insensitive_columns,
@@ -193,7 +193,7 @@ class LogStash::Outputs::Application_insights
   DEFAULT_DISABLE_NOTIFICATION = false
   DEFAULT_DISABLE_BLOB_UPLOAD = false
   DEFAULT_STOP_ON_UNKNOWN_IO_ERRORS = false
-  DEFAULT_DISABLE_TELEMETRY = false
+  DEFAULT_ENABLE_TELEMETRY_TO_MICROSOFT = false
   DEFAULT_DISABLE_CLEANUP = false
   DEFAULT_DELETE_NOT_NOTIFIED_BLOBS = false
   DEFAULT_SAVE_NOTIFIED_BLOBS_RECORDS = false
