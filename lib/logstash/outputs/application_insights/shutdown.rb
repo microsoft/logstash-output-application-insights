@@ -30,6 +30,9 @@ class LogStash::Outputs::Application_insights
       @logger_progname = configuration[:logger_progname]
       @logger = configuration[:logger]
 
+    end
+
+    def start
       @state = State.instance
       @channels = Channels.instance
     end

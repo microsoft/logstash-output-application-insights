@@ -78,9 +78,10 @@ class LogStash::Outputs::Application_insights
             @current_storage_account_names = current_storage_account_names
 
             Thread.new( storage_account_name ) do |account_name|
+              test_storage = Test_storage.new( account_name )
               loop do
                 sleep( @resurrect_delay )
-                if Blob.new.test_storage( account_name )
+                if test_storage.submit
                   @state_semaphore.synchronize {
                     storage_account = @storage_accounts[account_name]
                     storage_account[:off_reason] = [  ]

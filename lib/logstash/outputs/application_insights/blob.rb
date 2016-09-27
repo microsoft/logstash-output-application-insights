@@ -203,43 +203,6 @@ class LogStash::Outputs::Application_insights
     end
 
 
-    def test_storage ( storage_account_name )
-      @storage_account_name = storage_account_name
-      @action = :test_storage
-      @max_tries = 1
-      @force_client = true # to enable get a client even if all storage_accounts marked dead
-      @recoverable = [ :invalid_storage_key, :container_exist, :create_container ]
-      storage_io_block {
-        if @recovery.nil? || :invalid_storage_key == @recovery
-          @info = "#{@action} #{@storage_account_name}"
-          @client.blobClient.create_container( @configuration[:test_storage_container] ) unless @configuration[:disable_blob_upload]
-        end
-      }
-    end
-
-    def test_notification( storage_account_name )
-      @storage_account_name = storage_account_name
-      @action = :test_notification
-      @max_tries = 1
-      @force_client = true # to enable get a client even if all storage_accounts marked dead
-      @recoverable = [ :invalid_instrumentation_key, :invalid_table_id ]
-      success = storage_io_block {
-        if @recovery.nil?
-          @container_name = "logstash-test-container"
-          @blob_name = "logstash-test-blob"
-          @table_id = GUID_NULL
-          @instrumentation_key = GUID_NULL
-          @info = "#{@action}"
-          set_blob_sas_url
-          payload = create_payload
-          post_notification( @client.notifyClient, payload )
-        end
-      }
-      sleep( 30 ) unless success
-      success
-    end
-
-
     def notify_retry_later
       if :notify_failed_blob_not_accessible == @recovery
         @sub_state = @recovery

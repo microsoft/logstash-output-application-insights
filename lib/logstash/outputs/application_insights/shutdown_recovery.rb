@@ -29,14 +29,13 @@ class LogStash::Outputs::Application_insights
       @storage_account_name_key = configuration[:storage_account_name_key]
       @partition_key_prefix =configuration[:azure_storage_blob_prefix].gsub( "/", "" )
 
-      @storage_recovery = Storage_recovery.instance
-      @notification_recovery = Notification_recovery.instance
-
       @closing = nil
       @threads = []
     end
 
     def start
+      @storage_recovery = Storage_recovery.instance
+      @notification_recovery = Notification_recovery.instance
       @storage_account_name_key.each do |storage_account_name, storage_account_keys|
         @threads << recovery_thread( storage_account_name, :uploading)
         @threads << recovery_thread( storage_account_name, :committed)

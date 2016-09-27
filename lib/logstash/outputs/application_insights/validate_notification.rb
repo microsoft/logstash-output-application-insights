@@ -20,18 +20,16 @@
 # ----------------------------------------------------------------------------------
 
 class LogStash::Outputs::Application_insights
-  class Validate_notification < Blob
+  class Validate_notification
 
     public
 
     def initialize
-      # super first parameter must be nil. blob first parameter is channel, otherwise it will pass storage_account_name as channel
-      super( nil )
-      @storage_account_name_key = @configuration[:storage_account_name_key]
+      @test_notification = Test_notification.new
     end
 
     def validate
-      {:success => test_notification( @storage_account_name_key[0][0] ), :error => @last_io_exception }
+      {:success => @test_notification.submit, :error => @test_notification.last_io_exception }
     end
   end
 end

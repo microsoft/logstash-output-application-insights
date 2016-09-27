@@ -99,7 +99,9 @@ class LogStash::Outputs::Application_insights
     end
 
     def flush
-      @telemetry_channel.flush
+      if @enable_telemetry_to_microsoft
+        @telemetry_channel.flush
+      end
     end
 
     public

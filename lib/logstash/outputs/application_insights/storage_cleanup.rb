@@ -43,11 +43,9 @@ class LogStash::Outputs::Application_insights
       # super first parameter must be nil. blob first parameter is channel, otherwise it will pass storage_account_name as channel
       super( nil )
       @storage_account_name = storage_account_name
-      configuration = Config.current
-      @logger = configuration[:logger]
-      @azure_storage_container_prefix = configuration[:azure_storage_container_prefix]
-      @retention_time = configuration[:blob_retention_time] + 24 * 60 * 60
-      @not_notified_container = "#{configuration[:azure_storage_container_prefix]}-#{AZURE_STORAGE_ORPHAN_BLOBS_CONTAINER_NAME}"
+      @azure_storage_container_prefix = @configuration[:azure_storage_container_prefix]
+      @retention_time = @configuration[:blob_retention_time] + 24 * 60 * 60
+      @not_notified_container = "#{@configuration[:azure_storage_container_prefix]}-#{AZURE_STORAGE_ORPHAN_BLOBS_CONTAINER_NAME}"
       # launch tread that cleans the storage
       periodic_storage_cleanup
     end

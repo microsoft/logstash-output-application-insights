@@ -18,24 +18,33 @@
 # See the Apache Version 2.0 License for specific language governing 
 # permissions and limitations under the License.
 # ----------------------------------------------------------------------------------
-
 class LogStash::Outputs::Application_insights
-  class Validate_storage
+  class Test_notification < Blob
 
-    public
 
     def initialize
-      configuration = Config.current
-      @storage_account_name_key = configuration[:storage_account_name_key]
+      # super first parameter must be nil. blob first parameter is channel, otherwise it will pass storage_account_name as channel
+      super( nil )
+      @storage_account_name = @configuration[:storage_account_name_key][0][0]
+      @action = :test_notification
+      @info = "#{@action}"
+      @recoverable = [ :invalid_instrumentation_key, :invalid_table_id ]
+      @force_client = true # to enable get a client even if all storage_accounts marked dead
+      @container_name = "logstash-test-container"
+      @blob_name = "logstash-test-blob"
+      @table_id = GUID_NULL
+      @instrumentation_key = GUID_NULL
     end
 
-    def validate
-      result = {}
-      @storage_account_name_key.each do |storage_account_name, storage_account_keys|
-        test_storage = Test_storage.new( storage_account_name )
-        result[storage_account_name] = {:success => test_storage.submit, :error => test_storage.last_io_exception }
-      end
-      result
+    def submit
+      @max_tries = 1
+      storage_io_block {
+        if @recovery.nil?
+          set_blob_sas_url
+          payload = create_payload
+          post_notification( @client.notifyClient, payload )
+        end
+      }
     end
   end
 end

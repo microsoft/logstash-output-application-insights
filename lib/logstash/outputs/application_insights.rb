@@ -59,6 +59,8 @@ class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
   autoload :Notification_recovery, "logstash/outputs/application_insights/notification_recovery"
   autoload :Validate_storage, "logstash/outputs/application_insights/validate_storage"
   autoload :Validate_notification, "logstash/outputs/application_insights/validate_notification"
+  autoload :Test_storage, "logstash/outputs/application_insights/test_storage"
+  autoload :Test_notification, "logstash/outputs/application_insights/test_notification"
   
 
   autoload :Clients, "logstash/outputs/application_insights/clients" 
@@ -304,18 +306,23 @@ class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
     # set configuration
     Config.validate_and_adjust_configuration( default_configuration )
     configuration = Config.current
+    masked_configuration = Config.masked_current
 
     Multi_io_logger.config( configuration )
 
     # be careful don't use here @logger, as it will override Logstash @logger, and may create starnge behaviour
     @private_logger = configuration[:logger]
 
-    @private_logger.info { "configuration: #{configuration}" }
+    @private_logger.info { "configuration: #{masked_configuration}" }
 
     @telemetry = Telemetry.instance
     configuration[:telemetry_channel] = @telemetry.telemetry_channel
 
     Timer.config( configuration )
+
+    @notification_recovery = Notification_recovery.instance
+    @storage_recovery = Storage_recovery.instance
+    @shutdown_recovery = Shutdown_recovery.instance
 
     if @validate_notification
       status = Validate_notification.new.validate
@@ -329,17 +336,15 @@ class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
       end
     end
 
-    @notification_recovery = Notification_recovery.instance
     @notification_recovery.start
-
-    @storage_recovery = Storage_recovery.instance
     @storage_recovery.start
-
-    @shutdown_recovery = Shutdown_recovery.instance
     @shutdown_recovery.start
 
     @shutdown = Shutdown.instance
     @channels = Channels.instance
+
+    @shutdown.start
+    @channels.start
 
     @storage_cleanup = Storage_cleanup.start
 
@@ -349,7 +354,7 @@ class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
     #   @channels.receive( event, encoded_event )
     # end
 
-    @telemetry.track_event { { :name => "register", :properties => configuration } }
+    @telemetry.track_event { { :name => "register", :properties => masked_configuration } }
 
 
     return "ok\n"

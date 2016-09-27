@@ -36,9 +36,10 @@ class LogStash::Outputs::Application_insights
       @default_instrumentation_key = configuration[:instrumentation_key]
       @default_table_id = configuration[:table_id]
       @tables = configuration[:tables]
+    end
 
+    def start
       @flow_control = Flow_control.instance
-
       # launch tread that forward events from channels to azure storage
       periodic_forward_events
     end
@@ -133,6 +134,7 @@ class LogStash::Outputs::Application_insights
     public
 
     @@instance = Channels.new
+
     def self.instance
       @@instance
     end

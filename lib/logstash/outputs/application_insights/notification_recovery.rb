@@ -25,8 +25,7 @@ class LogStash::Outputs::Application_insights
 
     def initialize
       configuration = Config.current
-      @logger = configuration[:logger]
-      @storage_account_name_key = configuration[:storage_account_name_key]
+      @resurrect_delay = configuration[:resurrect_delay]
       @queue = Queue.new
 
       @closing = nil
@@ -34,6 +33,7 @@ class LogStash::Outputs::Application_insights
     end
 
     def start
+      @test_notification = Test_notification.new
       @thread = recovery_thread
     end
 
@@ -88,7 +88,11 @@ class LogStash::Outputs::Application_insights
     end
 
     def state_on? ( blob )
-      @notification_state_on ||= blob.test_notification( @storage_account_name_key[0][0] )
+      return @notification_state_on if @notification_state_on
+      @notification_state_on = @test_notification.submit
+      return @notification_state_on if @notification_state_on
+      sleep( @resurrect_delay )
+      @notification_state_on
     end
 
     public

@@ -25,9 +25,14 @@ class LogStash::Outputs::Application_insights
     public
 
     @@configuration = {}
+    @@masked_configuration = {}
 
     def self.current
       @@configuration
+    end
+
+    def self.masked_current
+      @@masked_configuration
     end
 
     def self.validate_and_adjust_configuration ( configuration )
@@ -46,7 +51,7 @@ class LogStash::Outputs::Application_insights
 
           i = 0
           logger_files.map! do |file_name|
-            file_name = validate_and_adjust( "#{config_name.to_s}[#{i}]", file_name, String )
+            file_name = validate_and_adjust( "#{config_name}[#{i}]", file_name, String )
             i += 1
             if "stdout" == file_name.downcase
               file_name = :stdout
@@ -55,7 +60,11 @@ class LogStash::Outputs::Application_insights
               file_name = :stderr
               file = STDERR
             else
-              file = ::File.open( file_name, "a+" )
+              begin
+                file = ::File.open( file_name, "a+" )
+              rescue => e
+                raise ConfigurationError, "#{config_name}[#{i}] cannot open file #{file_name}, due to error #{e.inspect}"
+              end
             end
             [ file_name, file ]
           end
@@ -158,26 +167,26 @@ class LogStash::Outputs::Application_insights
         when :storage_account_name_key
           config_value = validate_and_adjust( config_name, config_value, Array )
           if config_value.empty?
-            raise ConfigurationError, "#{config_name.to_s} is empty, at least one storage account name should be defined" unless ENV['AZURE_STORAGE_ACCOUNT']
-            raise ConfigurationError, "#{config_name.to_s} is empty, at least one storage account access key should be defined" unless ENV['AZURE_STORAGE_ACCESS_KEY']
+            raise ConfigurationError, "#{config_name} is empty, at least one storage account name should be defined" unless ENV['AZURE_STORAGE_ACCOUNT']
+            raise ConfigurationError, "#{config_name} is empty, at least one storage account access key should be defined" unless ENV['AZURE_STORAGE_ACCESS_KEY']
             config_value = [ ENV['AZURE_STORAGE_ACCOUNT'], ENV['AZURE_STORAGE_ACCESS_KEY'] ]
           end
 
           storage_account_name_key = validate_and_adjust( config_name, config_value, Array, :disallow_empty )
           unless storage_account_name_key[0].is_a?( Array )
-            raise ConfigurationError, "#{config_name.to_s} property is empty, should contain at least one pair: account_name, key" unless 2 == storage_account_name_key.length
+            raise ConfigurationError, "#{config_name} property is empty, should contain at least one pair: account_name, key" unless 2 == storage_account_name_key.length
             storage_account_name_key = [ [ storage_account_name_key[0], storage_account_name_key[1] ]]
           end
 
           index = 0
           storage_account_name_key.map! { |pair|
-            pair = validate_and_adjust( "#{config_name.to_s}[#{index}]", pair, Array, :disallow_empty )
-            raise ConfigurationError, "#{config_name.to_s}[#{index}] must have two items" unless 2 == pair.length
+            pair = validate_and_adjust( "#{config_name}[#{index}]", pair, Array, :disallow_empty )
+            raise ConfigurationError, "#{config_name}[#{index}] must have two items" unless 2 == pair.length
 
             ( name, keys ) = pair
-            name = validate_and_adjust( "#{config_name.to_s}[#{index}]:name", name, String, :disallow_empty )
-            raise ConfigurationError, "#{config_name.to_s}[#{index}]:name must between 3 to 24 characters" unless (name.length >= 3) && (name.length <= 24)
-            raise ConfigurationError, "##{config_name.to_s}[#{index}]:name bad format, must have only alphanumeric characters" unless Utils.alphanumeric?( name )
+            name = validate_and_adjust( "#{config_name}[#{index}]:name", name, String, :disallow_empty )
+            raise ConfigurationError, "#{config_name}[#{index}]:name must between 3 to 24 characters" unless (name.length >= 3) && (name.length <= 24)
+            raise ConfigurationError, "##{config_name}[#{index}]:name bad format, must have only alphanumeric characters" unless Utils.alphanumeric?( name )
 
             keys = [ keys ] if keys.is_a?( String )
             keys = validate_and_adjust( "#{config_name}[#{index}]:keys", keys, Array, :disallow_empty )
@@ -207,9 +216,23 @@ class LogStash::Outputs::Application_insights
       configuration[:state_table_name] = "#{AZURE_STORAGE_TABLE_LOGSTASH_PREFIX}#{configuration[:azure_storage_table_prefix]}#{STATE_TABLE_NAME}"
       configuration[:test_storage_container] = "#{AZURE_STORAGE_CONTAINER_LOGSTASH_PREFIX}#{configuration[:azure_storage_container_prefix]}-#{STORAGE_TEST_CONTAINER_NAME}"
       configuration[:partition_key_prefix] = configuration[:azure_storage_blob_prefix].gsub( "/", "" )
+
+      @@masked_configuration = mask_configuration( configuration )
+
       @@configuration = configuration
     end
 
+    def self.mask_configuration ( configuration )
+      masked_configuration = configuration.dup
+      storage_account_name_key = masked_configuration[:storage_account_name_key]
+      masked_storage_account_name_key = storage_account_name_key.map { |pair|
+        ( name, keys ) = pair
+        masked_keys = keys.map { |key| "*****************" }
+        [ name, masked_keys ]
+      }
+      masked_configuration[:storage_account_name_key] = masked_storage_account_name_key
+      masked_configuration
+    end
 
     def self.symbolize_table_properties ( properties )
       new_properties = {}

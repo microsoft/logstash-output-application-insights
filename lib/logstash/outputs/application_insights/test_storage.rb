@@ -18,24 +18,27 @@
 # See the Apache Version 2.0 License for specific language governing 
 # permissions and limitations under the License.
 # ----------------------------------------------------------------------------------
-
 class LogStash::Outputs::Application_insights
-  class Validate_storage
+  class Test_storage < Blob
 
-    public
 
-    def initialize
-      configuration = Config.current
-      @storage_account_name_key = configuration[:storage_account_name_key]
+    def initialize ( storage_account_name )
+      # super first parameter must be nil. blob first parameter is channel, otherwise it will pass storage_account_name as channel
+      super( nil )
+      @storage_account_name = storage_account_name
+      @action = :test_storage
+      @info = "#{@action} #{@storage_account_name}"
+      @recoverable = [ :invalid_storage_key, :container_exist, :create_container ]
+      @force_client = true # to enable get a client even if all storage_accounts marked dead
     end
 
-    def validate
-      result = {}
-      @storage_account_name_key.each do |storage_account_name, storage_account_keys|
-        test_storage = Test_storage.new( storage_account_name )
-        result[storage_account_name] = {:success => test_storage.submit, :error => test_storage.last_io_exception }
-      end
-      result
+    def submit
+      @max_tries = 1
+      storage_io_block {
+        if @recovery.nil? || :invalid_storage_key == @recovery
+          @client.blobClient.create_container( @configuration[:test_storage_container] ) unless @configuration[:disable_blob_upload]
+        end
+      }
     end
   end
 end
