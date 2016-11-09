@@ -32,7 +32,7 @@ class LogStash::Outputs::Application_insights
       @force_client = true # to enable get a client even if all storage_accounts marked dead
     end
 
-    def submit
+    def test
       @max_tries = 1
       storage_io_block {
         if @recovery.nil? || :invalid_storage_key == @recovery

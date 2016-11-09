@@ -73,6 +73,7 @@ class LogStash::Outputs::Application_insights
       :blob_serialization => @blob_serialization || DEFAULT_BLOB_SERIALIZATION,
       :csv_separator => @csv_separator || DEFAULT_CSV_SEPARATOR,
       :csv_default_value => @csv_default_value || DEFAULT_CSV_DEFAULT_VALUE,
+      :disable_compression => @disable_compression || DEFAULT_DISABLE_COMPRESSION,
 
     }
   end
@@ -82,6 +83,7 @@ class LogStash::Outputs::Application_insights
                           :disable_cleanup, :delete_not_notified_blobs,
                           :validate_notification, :validate_storage,
                           :save_notified_blobs_records, :case_insensitive_columns,
+                          :disable_compression,
                           :table_columns, :serialized_event_field ]
 
   GUID_NULL =                    "00000000-0000-0000-0000-000000000000"
@@ -140,6 +142,9 @@ class LogStash::Outputs::Application_insights
   MIN_FLOW_CONTROL_DELAY = 0.1                            # in seconds, 1 seconds, can be less than 1 seconds, like 0.5, 0.1
   MAX_FLOW_CONTROL_DELAY = 0                              # in seconds, 1 seconds, can be less than 1 seconds, like 0.5, 0.1
 
+  MAX_CHANNEL_UPLOAD_PIPES = 40
+  CHANNEL_THRESHOLD_TO_ADD_UPLOAD_PIPE = 3                # not relevant for file upload mode
+
   METADATA_FIELD_INSTRUMENTATION_KEY = "[@metadata]instrumentation_key"
   METADATA_FIELD_TABLE_ID = "[@metadata]table_id"
   FIELD_INSTRUMENTATION_KEY = "instrumentation_key"
@@ -151,6 +156,7 @@ class LogStash::Outputs::Application_insights
   AZURE_STORAGE_CONTAINER_LOGSTASH_PREFIX = "logstash" # lower case only, dash allowed
   AZURE_STORAGE_BLOB_LOGSTASH_PREFIX = "logstash"
   AZURE_STORAGE_TABLE_LOGSTASH_PREFIX = "Logstash" # case sensitive, no dash
+  LOCAL_FS_FILE_PREFIX = "application_insights"
 
   AZURE_STORAGE_ORPHAN_BLOBS_CONTAINER_NAME = "orphan-blobs"
   AZURE_STORAGE_NOTIFIED_BLOBS_TABLE_NAME = "orphan-blobs"
@@ -174,14 +180,11 @@ class LogStash::Outputs::Application_insights
   DEFAULT_AZURE_STORAGE_BLOB_PREFIX = nil
   DEFAULT_AZURE_STORAGE_CONTAINER_PREFIX = nil
   DEFAULT_AZURE_STORAGE_TABLE_PREFIX = nil
-  DEFAULT_JSON_EXT = EXT_EVENT_FORMAT_JSON
-  DEFAULT_CSV_EXT = EXT_EVENT_FORMAT_CSV
-
 
   DEFAULT_BLOB_SERIALIZATION = EXT_EVENT_FORMAT_JSON
 
-  DEFAULT_BLOB_MAX_BYTESIZE = 1 * 1024 * 1024 * 1024
-  DEFAULT_BLOB_MAX_EVENTS = 256 * 1024                 # 256 Kilo events
+  DEFAULT_BLOB_MAX_BYTESIZE = 4 * 1024 * 1024 * 1024    # 4 Giga bytes
+  DEFAULT_BLOB_MAX_EVENTS = 1000 * 1000                 # 1,000,000
 
   DEFAULT_BLOB_MAX_DELAY = 60                         # in seconds
   DEFAULT_BLOB_RETENTION_TIME = 60 * 60 * 24 * 7      # in seconds - one week
@@ -197,6 +200,7 @@ class LogStash::Outputs::Application_insights
   DEFAULT_DISABLE_CLEANUP = false
   DEFAULT_DELETE_NOT_NOTIFIED_BLOBS = false
   DEFAULT_SAVE_NOTIFIED_BLOBS_RECORDS = false
+  DEFAULT_DISABLE_COMPRESSION = false
   
   DEFAULT_CASE_INSENSITIVE = false
 

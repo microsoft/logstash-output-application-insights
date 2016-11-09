@@ -29,7 +29,7 @@ class LogStash::Outputs::Application_insights
     end
 
     def validate
-      {:success => @test_notification.submit, :error => @test_notification.last_io_exception }
+      {:success => @test_notification.test, :error => @test_notification.last_io_exception }
     end
   end
 end

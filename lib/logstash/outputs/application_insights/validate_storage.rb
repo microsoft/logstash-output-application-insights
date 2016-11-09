@@ -33,7 +33,7 @@ class LogStash::Outputs::Application_insights
       result = {}
       @storage_account_name_key.each do |storage_account_name, storage_account_keys|
         test_storage = Test_storage.new( storage_account_name )
-        result[storage_account_name] = {:success => test_storage.submit, :error => test_storage.last_io_exception }
+        result[storage_account_name] = {:success => test_storage.test, :error => test_storage.last_io_exception }
       end
       result
     end

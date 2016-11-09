@@ -19,11 +19,10 @@
 # permissions and limitations under the License.
 # ----------------------------------------------------------------------------------
 class LogStash::Outputs::Application_insights
-  class Test_notification < Blob
+  class Test_notification < Notification
 
 
     def initialize
-      # super first parameter must be nil. blob first parameter is channel, otherwise it will pass storage_account_name as channel
       super( nil )
       @storage_account_name = @configuration[:storage_account_name_key][0][0]
       @action = :test_notification
@@ -36,13 +35,11 @@ class LogStash::Outputs::Application_insights
       @instrumentation_key = GUID_NULL
     end
 
-    def submit
+    def test
       @max_tries = 1
       storage_io_block {
         if @recovery.nil?
-          set_blob_sas_url
-          payload = create_payload
-          post_notification( @client.notifyClient, payload )
+          submit
         end
       }
     end

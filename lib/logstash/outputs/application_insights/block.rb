@@ -22,13 +22,13 @@
 class LogStash::Outputs::Application_insights
   class Block
 
-    attr_reader :bytes
-    attr_reader :buffer
-    attr_reader :bytesize
-    attr_reader :events_count
-    attr_reader :block_numbers
-    attr_reader :done_time
-    attr_reader :oldest_event_time
+    attr_accessor :bytes
+    attr_accessor :buffer
+    attr_accessor :bytesize
+    attr_accessor :events_count
+    attr_accessor :block_numbers
+    attr_accessor :done_time
+    attr_accessor :oldest_event_time
 
 
     public
@@ -42,20 +42,17 @@ class LogStash::Outputs::Application_insights
 
 
 
-    def initialize ( event_separator )
-      @buffer = [  ]
-      @bytesize = 0
-      @events_count = 0
+    def initialize ( event_separator = "" )
+      dispose
       @event_separator = event_separator
       @event_separator_bytesize = @event_separator.bytesize
-      @block_numbers = nil
     end
 
     # concatenate two blocks into one
     def concat ( other )
       if @bytesize + other.bytesize <= BLOB_BLOCK_MAX_BYTESIZE
         if @block_numbers
-          @block_numbers.concat( other.block_numbers ) if @block_numbers
+          @block_numbers.concat( other.block_numbers )
           @bytes += other.bytes
           @done_time = other.done_time if other.done_time > @done_time
         else
@@ -84,20 +81,30 @@ class LogStash::Outputs::Application_insights
 
     def dispose
       @bytes = nil
-      @buffer = nil
-      @bytesize = nil
-      @events_count = nil
+      @buffer = [  ]
+      @bytesize = 0
+      @events_count = 0
       @done_time = nil
       @oldest_event_time = nil
       @block_numbers = nil
     end
 
+
+    def partial_seal
+      if @done_time.nil?
+        @done_time = Time.now.utc
+        @buffer << "" # required to add eol after last event
+        @bytes = @buffer.join( @event_separator )
+        @buffer = nil # release the memory of the array
+      end
+    end
+
+
     def seal
-      @block_numbers = [ Block.generate_block_number ]
-      @done_time = Time.now.utc
-      @buffer << "" # required to add eol after last event
-      @bytes = @buffer.join( @event_separator )
-      @buffer = nil # release the memory of the array
+      if @done_time.nil?
+        @block_numbers = [ Block.generate_block_number ]
+        partial_seal
+      end
     end
 
     def is_full?

@@ -52,11 +52,12 @@ class LogStash::Outputs::Application_insights
       elsif LogStash::FLUSH == event
         @logger.info { "received a LogStash::FLUSH event" }
       else
-        table_id = event[METADATA_FIELD_TABLE_ID] || event[FIELD_TABLE_ID] || @default_table_id
-        instrumentation_key = event[METADATA_FIELD_INSTRUMENTATION_KEY] || event[FIELD_INSTRUMENTATION_KEY] || ( @tables[table_id][:instrumentation_key] if @tables[table_id] ) || @default_instrumentation_key
+        data = event.to_hash
+        table_id = ( event.include?( METADATA_FIELD_TABLE_ID ) ? event.sprintf( "%{#{METADATA_FIELD_TABLE_ID}}" ) : data[FIELD_TABLE_ID] ) || @default_table_id
+        instrumentation_key = ( event.include?( METADATA_FIELD_INSTRUMENTATION_KEY ) ? event.sprintf( "%{#{METADATA_FIELD_INSTRUMENTATION_KEY}}" ) : data[FIELD_INSTRUMENTATION_KEY] ) || @default_instrumentation_key
 
         @flow_control.pass_or_wait
-        channel( instrumentation_key, table_id ) << event
+        channel( instrumentation_key, table_id ) << data
       end
     end
 

@@ -24,16 +24,20 @@ class LogStash::Outputs::Application_insights
 
     attr_reader :instrumentation_key
     attr_reader :table_id
-    attr_reader :failed_on_upload_retry_Q
-    attr_reader :failed_on_notify_retry_Q
-    attr_reader :event_format_ext
     attr_reader :blob_max_delay
+    attr_reader :blob_extension
+    attr_reader :event_format
 
     public
 
     def initialize ( instrumentation_key, table_id )
       @closing = false
       configuration = Config.current
+      
+      @file_pipe = !configuration[:disable_compression]
+      @gzip_file = !configuration[:disable_compression]
+      @blob_max_bytesize = configuration[:blob_max_bytesize]
+      @blob_max_events = configuration[:blob_max_events]
 
       @logger = configuration[:logger]
 
@@ -42,19 +46,41 @@ class LogStash::Outputs::Application_insights
       @table_id = table_id
       set_table_properties( configuration )
       @semaphore = Mutex.new
-      @failed_on_upload_retry_Q = Queue.new
-      @failed_on_notify_retry_Q = Queue.new
       @workers_channel = {  }
-      @active_blobs = [ Blob.new( self, 1 ) ]
 
-      launch_upload_recovery_thread
+      @failed_on_notify_retry_Q = Queue.new
       launch_notify_recovery_thread
+
+      @blob_extension = ".#{@event_format}"
+      if file_pipe?
+        @blob_extension = "_#{@event_format}.gz" if gzip_file?
+        @add_pipe_threshold = 0
+        @file_prefix = configuration[:local_file_prefix]
+        @file = nil
+        @failed_on_file_upload_retry_Q = Queue.new
+        launch_file_upload_recovery_thread
+      else
+        @add_pipe_threshold = CHANNEL_THRESHOLD_TO_ADD_UPLOAD_PIPE
+        @failed_on_block_upload_retry_Q = Queue.new
+        launch_block_upload_recovery_thread
+      end
+
+      @active_upload_pipes = [ Upload_pipe.new( self, 1 ) ]
+    end
+
+
+    def gzip_file?
+      @gzip_file
+    end
+
+    def file_pipe?
+      @file_pipe
     end
 
     def close
       @closing = true
-      @active_blobs.each do |blob|
-        blob.close
+      @active_upload_pipes.each do |upload_pipe|
+        upload_pipe.close
       end
     end
 
@@ -62,28 +88,101 @@ class LogStash::Outputs::Application_insights
       @closing
     end
 
-    def << ( event )
-      if @serialized_event_field && event[@serialized_event_field]
-        serialized_event = serialize_serialized_event_field( event[@serialized_event_field] )
+    # received data is an hash of the event (does not include metadata)
+    def << ( data )
+      if @serialized_event_field && data[@serialized_event_field]
+        serialized_event = serialize_serialized_event_field( data[@serialized_event_field] )
       else
-        serialized_event = ( EXT_EVENT_FORMAT_CSV == @serialization ? serialize_to_csv( event ) : serialize_to_json( event ) )
+        serialized_event = ( EXT_EVENT_FORMAT_CSV == @event_format ? serialize_to_csv( data ) : serialize_to_json( data ) )
       end
 
       if serialized_event
         sub_channel = @workers_channel[Thread.current] || @semaphore.synchronize { @workers_channel[Thread.current] = Sub_channel.new( @event_separator ) }
         sub_channel << serialized_event
       else
-        @logger.warn { "event not uploaded, no relevant data in event. table_id: #{table_id}, event: #{event}" }
+        @logger.warn { "event not uploaded, no relevant data in event. table_id: #{table_id}, event: #{data}" }
       end
     end
 
+
     def flush
-      block_list = collect_blocks
-      enqueue_blocks( block_list )
+      if file_pipe?
+        gz_collect_and_compress_blocks_to_file
+        if file_expired_or_full?
+          enqueue_to_pipe( [ @file ] )
+          @file = nil
+        end
+      else
+        list = collect_blocks
+        enqueue_to_pipe( list )
+      end
     end
 
 
+    def recover_later_notification( tuple )
+      @failed_on_notify_retry_Q << tuple
+    end
+
+
+    def recover_later_block_upload( block_to_upload )
+      @failed_on_block_upload_retry_Q << block_to_upload
+    end
+
+    def recover_later_file_upload( file_to_upload )
+      # start the file from the begining
+      file_to_upload.close_read
+      @failed_on_file_upload_retry_Q << file_to_upload
+    end
+
     private
+
+    def local_file_name
+      time_utc = Time.now.utc
+      strtime = Time.now.utc.strftime( "%F-%H-%M-%S-%L" )
+      "#{@file_prefix}_ikey-#{@instrumentation_key}_table-#{@table_id}_#{strtime}#{@blob_extension}"
+    end
+
+
+    def local_file
+      @file ||= Local_file.new( local_file_name, gzip_file? )
+    end
+
+
+    def file_expired_or_full?
+      @file && ( @file.oldest_event_time + @blob_max_delay <= Time.now.utc  ||  @file.bytesize >= @blob_max_bytesize  ||  @file.events_count >= @blob_max_events )
+    end
+
+
+    def gz_collect_and_compress_blocks_to_file
+      workers_channel = @semaphore.synchronize { @workers_channel.dup }
+      full_block_list = [  ]
+
+      workers_channel.each_value do |worker_channel|
+        full_block_list.concat( worker_channel.get_block_list! )
+      end
+
+      full_block_list.each do |block|
+        block.partial_seal
+        local_file << block
+      end
+    end
+
+
+    def launch_file_upload_recovery_thread
+      #recovery thread
+      Thread.new do
+        loop do
+          file_to_upload = @failed_on_file_upload_retry_Q.pop
+          until Clients.instance.storage_account_state_on? do
+            Stud.stoppable_sleep( 60 ) { stopped? }
+          end
+          if file_to_upload
+            enqueue_to_pipe( [ file_to_upload ] )
+          end
+        end
+      end
+    end
+
 
     def collect_blocks
       workers_channel = @semaphore.synchronize { @workers_channel.dup }
@@ -110,26 +209,24 @@ class LogStash::Outputs::Application_insights
     end
 
 
-    def enqueue_blocks ( block_list )
-      block_list.each do |block|
-        block.seal
-        find_blob << block
+    def enqueue_to_pipe ( list )
+      list.each do |block_or_file|
+        block_or_file.seal
+        find_upload_pipe << block_or_file
       end
     end
 
 
-    def launch_upload_recovery_thread
+    def launch_block_upload_recovery_thread
       #recovery thread
       Thread.new do
-        next_block = nil
         loop do
-          block_to_upload = next_block || @failed_on_upload_retry_Q.pop
-          next_block = nil
+          block_to_upload = @failed_on_block_upload_retry_Q.pop
           until Clients.instance.storage_account_state_on? do
             Stud.stoppable_sleep( 60 ) { stopped? }
           end
           if block_to_upload
-            find_blob << block_to_upload
+            enqueue_to_pipe( [ block_to_upload ] )
           end
         end
       end
@@ -152,10 +249,10 @@ class LogStash::Outputs::Application_insights
             @shutdown ||= Shutdown.instance
             @shutdown.display_msg("!!! notification won't recover in this session due to shutdown")
           else
-            success = Blob.new.notify( tuple )
+            success = Notification.new( tuple ).notify
             while success && @failed_on_notify_retry_Q.length > 0
               tuple = @failed_on_notify_retry_Q.pop
-              success = Blob.new.notify( tuple )
+              success = Notification.new( tuple ).notify
             end
           end
           tuple = nil # release for GC
@@ -168,13 +265,13 @@ class LogStash::Outputs::Application_insights
       serialized_data = nil
       if data.is_a?( String )
         serialized_data = data
-      elsif EXT_EVENT_FORMAT_CSV == @serialization
+      elsif EXT_EVENT_FORMAT_CSV == @event_format
         if data.is_a?( Array )
           serialized_data = data.to_csv( :col_sep => @csv_separator )
         elsif data.is_a?( Hash )
           serialized_data = serialize_to_csv( data )
         end
-      elsif EXT_EVENT_FORMAT_JSON == @serialization
+      elsif EXT_EVENT_FORMAT_JSON == @event_format
         if data.is_a?( Hash )
           serialized_data = serialize_to_json( data )
         elsif data.is_a?( Array ) && !@table_columns.nil?
@@ -185,14 +282,14 @@ class LogStash::Outputs::Application_insights
     end
 
 
-    def serialize_to_json ( event )
-      return event.to_json unless !@table_columns.nil?
+    def serialize_to_json ( data )
+      return data.to_json unless !@table_columns.nil?
 
-      fields = ( @case_insensitive_columns ? Utils.downcase_hash_keys( event.to_hash ) : event )
+      data = Utils.downcase_hash_keys( data ) if @case_insensitive_columns
 
       json_hash = {  }
       @table_columns.each do |column|
-        value = fields[column[:field_name]] || column[:default]
+        value = data[column[:field_name]] || column[:default]
         json_hash[column[:name]] = value if value
       end
       return nil if json_hash.empty?
@@ -200,14 +297,14 @@ class LogStash::Outputs::Application_insights
     end
 
 
-    def serialize_to_csv ( event )
+    def serialize_to_csv ( data )
       return nil unless !@table_columns.nil?
 
-      fields = ( @case_insensitive_columns ? Utils.downcase_hash_keys( event.to_hash ) : event )
+      data = Utils.downcase_hash_keys( data ) if @case_insensitive_columns
 
       csv_array = [  ]
       @table_columns.each do |column|
-        value = fields[column[:field_name]] || column[:default] || @csv_default_value
+        value = data[column[:field_name]] || column[:default] || @csv_default_value
         type = (column[:type] || value.class.name).downcase.to_sym
         csv_array << ( [:hash, :array, :json, :dynamic, :object].include?( type ) ? value.to_json : value )
       end
@@ -216,14 +313,14 @@ class LogStash::Outputs::Application_insights
     end
 
 
-    def find_blob
-      min_blob = @active_blobs[0]
-      @active_blobs.each do |blob|
-        return blob if 0 == blob.queue_size
-        min_blob = blob if blob.queue_size < min_blob.queue_size
+    def find_upload_pipe
+      min_upload_pipe = @active_upload_pipes[0]
+      @active_upload_pipes.each do |upload_pipe|
+        return upload_pipe unless min_upload_pipe.busy?
+        min_upload_pipe = upload_pipe if upload_pipe.queue_size < min_upload_pipe.queue_size
       end
-      @active_blobs << ( min_blob = Blob.new( self, @active_blobs.length + 1 ) ) if min_blob.queue_size > 2 && @active_blobs.length < 40
-      min_blob
+      @active_upload_pipes << ( min_upload_pipe = Upload_pipe.new( self, @active_upload_pipes.length + 1 ) ) if min_upload_pipe.busy? && min_upload_pipe.queue_size >= @add_pipe_threshold && @active_upload_pipes.length < MAX_CHANNEL_UPLOAD_PIPES
+      min_upload_pipe
     end
 
 
@@ -235,16 +332,17 @@ class LogStash::Outputs::Application_insights
         @event_separator = table_properties[:event_separator]
         @serialized_event_field = table_properties[:serialized_event_field]
         @table_columns = table_properties[:table_columns]
-        @serialization = table_properties[:blob_serialization]
+        @event_format = table_properties[:blob_serialization]
         @case_insensitive_columns = table_properties[:case_insensitive_columns]
         @csv_default_value = table_properties[:csv_default_value]
         @csv_separator = table_properties[:csv_separator]
       end
+
       @blob_max_delay ||= configuration[:blob_max_delay]
       @event_separator ||= configuration[:event_separator]
       @serialized_event_field ||= configuration[:serialized_event_field]
       @table_columns ||= configuration[:table_columns]
-      @serialization ||= configuration[:blob_serialization]
+      @event_format ||= configuration[:blob_serialization]
       @case_insensitive_columns ||= configuration[:case_insensitive_columns]
       @csv_default_value ||= configuration[:csv_default_value]
       @csv_separator ||= configuration[:csv_separator]
@@ -257,9 +355,6 @@ class LogStash::Outputs::Application_insights
           new_column
         end
       end
-
-      # in the future, when compression is introduced, the serialization may be different from the extension
-      @event_format_ext = @serialization
 
     end
 

@@ -81,7 +81,7 @@ class LogStash::Outputs::Application_insights
               test_storage = Test_storage.new( account_name )
               loop do
                 sleep( @resurrect_delay )
-                if test_storage.submit
+                if test_storage.test
                   @state_semaphore.synchronize {
                     storage_account = @storage_accounts[account_name]
                     storage_account[:off_reason] = [  ]

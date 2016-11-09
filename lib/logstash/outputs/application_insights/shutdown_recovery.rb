@@ -27,7 +27,7 @@ class LogStash::Outputs::Application_insights
       configuration = Config.current
       @logger = configuration[:logger]
       @storage_account_name_key = configuration[:storage_account_name_key]
-      @partition_key_prefix =configuration[:azure_storage_blob_prefix].gsub( "/", "" )
+      @partition_key_prefix =configuration[:partition_key_prefix]
 
       @closing = nil
       @threads = []
@@ -85,7 +85,8 @@ class LogStash::Outputs::Application_insights
               entities.each do |entity|
                 typed_tuple = nil
                 until typed_tuple || stopped?
-                  typed_tuple = blob.update_commited_or_uncommited_list( entity.properties )
+                  blob.table_entity_to_context( entity.properties )
+                  typed_tuple = blob.update_commited_or_uncommited_list
                   Stud.stoppable_sleep(60, 1) { stopped? } unless typed_tuple
                 end
 

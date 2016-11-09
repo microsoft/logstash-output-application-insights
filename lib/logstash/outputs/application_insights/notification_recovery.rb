@@ -66,19 +66,18 @@ class LogStash::Outputs::Application_insights
 
     def recovery_thread
       Thread.new do
-        blob = Blob.new
         counter = Concurrent::AtomicFixnum.new(0)
 
         loop do
           tuple = @queue.pop
-          Stud.stoppable_sleep(Float::INFINITY, 1) { ( state_on?( blob ) || stopped? ) && 10 > counter.value }
+          Stud.stoppable_sleep(Float::INFINITY, 1) { ( state_on? || stopped? ) && 10 > counter.value }
 
-          if stopped? && !state_on?( blob )
+          if stopped? && !state_on?
             recover_later( tuple )
           else
             counter.increment
             Thread.new( counter, tuple ) do |counter, tuple|
-              Blob.new.notify( tuple )
+              Notification.new( tuple ).notify
               counter.decrement
             end
           end
@@ -87,9 +86,9 @@ class LogStash::Outputs::Application_insights
       end
     end
 
-    def state_on? ( blob )
+    def state_on?
       return @notification_state_on if @notification_state_on
-      @notification_state_on = @test_notification.submit
+      @notification_state_on = @test_notification.test
       return @notification_state_on if @notification_state_on
       sleep( @resurrect_delay )
       @notification_state_on

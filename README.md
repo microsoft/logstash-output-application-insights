@@ -185,7 +185,7 @@ case_insensitive_columns => true
 ```
 
 ### blob_max_bytesize
-Advanced, internal, should not be set. Default 1 GB.
+Advanced, internal, should not be set. Default 4 GB.
 Azure storage maximum bytesize is 192 GB ( = 50,000 * 4 MB ) 
 example:
 ```ruby
@@ -193,7 +193,7 @@ blob_max_bytesize => 4000000000
 ```
 
 ### blob_max_events
-Specifies, maximum number of events in one blob. Default 256,000 events
+Specifies, maximum number of events in one blob. Default 1,000,000 events
 Setting it too low may improve latency, but will reduce ingestion performance
 Setting it too high may damage latency up to maximum delay, but ingestion will be more efficient, and load on network will be lower
 example:
@@ -359,12 +359,20 @@ example:
 disable_cleanup => true
 ```
 
+### disable_compression
+When set to true, blobs won't be compressed (beware: it will require more storage, more memory and more bandwidth) Default false
+example:
+```ruby
+disable_compression => true
+```
+
 ### delete_not_notified_blobs
 When set to true, not notified blobs are deleted, if not set they are copied to the orphan-blobs container. Default false
 example:
 ```ruby
 delete_not_notified_blobs => true
 ```
+
 ### validate_notification
 When set to true, access to application insights will be validated at initialization and if validation fail, logstash process will abort. Default false
 example:

@@ -27,6 +27,7 @@ class LogStash::Outputs::Application_insights
       configuration = Config.current
       @logger = configuration[:logger]
       @storage_account_name_key = configuration[:storage_account_name_key]
+
       @queues = { :commit => {}, :notify => {}, :state_table_update => {} }
       init_queues( @storage_account_name_key, @queues )
 
@@ -43,7 +44,7 @@ class LogStash::Outputs::Application_insights
       end
     end
 
-    def recover_later ( tuple, action = nil, storage_account_name = nil )
+    def recover_later ( tuple, action , storage_account_name )
       if stopped?
         if :commit == action
           @state ||= State.instance
@@ -87,11 +88,17 @@ class LogStash::Outputs::Application_insights
           Stud.stoppable_sleep(Float::INFINITY, 1) { ( state_on?( storage_account_name )  || stopped? ) && 10 > counter.value }
 
           if stopped? && !state_on?( storage_account_name )
-            recover_later( tuple )
+            recover_later( tuple, action, storage_account_name )
           else
             counter.increment
             Thread.new( action, counter, tuple ) do |action, counter, tuple|
-              Blob.new.send( action, tuple )
+              if :notify == action
+                Notification.new( tuple ).notify
+              elsif :commit == action
+                Upload_pipe.new( nil, nil, tuple ).commit
+              elsif :state_table_update == action
+                Blob.new( tuple ).state_table_update
+              end
               counter.decrement
             end
           end

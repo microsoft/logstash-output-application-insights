@@ -44,14 +44,21 @@ require "concurrent" # for atomic and thread safe operations
 require "logger"
 require "csv"
 
+require "zlib"
+
 require "application_insights"
 
 class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
   require "logstash/outputs/application_insights/version"
-  require "logstash/outputs/application_insights/utils" 
-  require "logstash/outputs/application_insights/constants" 
-  require "logstash/outputs/application_insights/config" 
-  require "logstash/outputs/application_insights/blob" 
+  autoload :Context, "logstash/outputs/application_insights/context"
+  autoload :Local_file, "logstash/outputs/application_insights/local_file"
+  require "logstash/outputs/application_insights/utils"
+  require "logstash/outputs/application_insights/constants"
+  require "logstash/outputs/application_insights/config"
+  require "logstash/outputs/application_insights/blob"
+  require "logstash/outputs/application_insights/notification"
+  require "logstash/outputs/application_insights/upload_pipe"
+
   autoload :Block, "logstash/outputs/application_insights/block"
   autoload :Storage_cleanup, "logstash/outputs/application_insights/storage_cleanup"
   autoload :Shutdown_recovery, "logstash/outputs/application_insights/shutdown_recovery"
@@ -296,6 +303,8 @@ class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
   # and if validation fail, logstash process will abort
   config :validate_storage, :validate => :boolean
 
+  # When set to true, blobs won't be compressed. 
+  config :disable_compression, :validate => :boolean
   public
 
   def register
@@ -355,7 +364,6 @@ class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
     # end
 
     @telemetry.track_event { { :name => "register", :properties => masked_configuration } }
-
 
     return "ok\n"
   end # def register
