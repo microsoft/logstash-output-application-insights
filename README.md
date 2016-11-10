@@ -14,6 +14,8 @@
 
 * Logstash 2.3.2
 * Logstash 2.3.4
+* Logstash 2.4.0
+* Logstash 5.0.0
 
 Note: 
 
