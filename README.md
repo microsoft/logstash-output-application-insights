@@ -124,6 +124,7 @@ storage_account_name_key => [ ["my-storage-account1", "key1"], "my-storage-accou
 
 storage_account_name_key => [ ["my-storage-account1", ["key11", "key12"]], ["my-storage-account1", "key2"], ["my-storage-account1", ["key3"] ]
 ```
+**Note: the storage account must be of "General purpose" kind.**
 
 ### azure_storage_table_prefix
 A prefix for the azure storage tables name used by this Logstash instance. Default host name

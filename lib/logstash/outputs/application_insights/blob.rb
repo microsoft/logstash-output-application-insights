@@ -269,6 +269,9 @@ class LogStash::Outputs::Application_insights
         elsif 500 == e.status_code  && "Unknown" == e.type && e.description.include?("Processing error")
           :notification_process_down
 
+        elsif 501 == e.status_code
+          :not_implemented
+
         elsif 503 == e.status_code
           :service_unavailable
 

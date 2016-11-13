@@ -309,6 +309,10 @@ class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
 
   def register
 
+    # puts "++ SETTINGS: #{LogStash::SETTINGS.to_hash}"
+    # @logger.info("test test", :xx => "xx", :yy => 1)
+    # puts "++ LOGSTASH_HOME: #{LogStash::Environment::LOGSTASH_HOME}"
+
     # logstash define: @original_params = original_params
     # logstash define: @config = params
 
@@ -321,7 +325,6 @@ class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
 
     # be careful don't use here @logger, as it will override Logstash @logger, and may create starnge behaviour
     @private_logger = configuration[:logger]
-
     @private_logger.info { "configuration: #{masked_configuration}" }
 
     @telemetry = Telemetry.instance
@@ -334,14 +337,14 @@ class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
     @shutdown_recovery = Shutdown_recovery.instance
 
     if @validate_notification
-      status = Validate_notification.new.validate
-      raise ConfigurationError, "Failed to access application insights at #{configuration[:application_insights_endpoint]}, due to error #{status[:error].inspect}" unless status[:success]
+      result = Validate_notification.new.validate
+      raise ConfigurationError, "Failed to access application insights at #{configuration[:application_insights_endpoint]}, due to error #{result[:error].inspect}" unless result[:success]
     end
 
     if @validate_storage
-      result = Validate_storage.new.validate
-      result.each do |storage_account_name, status|
-        raise ConfigurationError, "Failed access azure storage account #{storage_account_name}, due to error #{status[:error].inspect}" unless status[:success]
+      results = Validate_storage.new.validate
+      results.each do |result|
+        raise ConfigurationError, "Failed to #{result[:test]} in azure storage account #{result[:storage_account_name]}, due to error #{result[:error].inspect}" unless result[:success]
       end
     end
 

@@ -215,6 +215,7 @@ class LogStash::Outputs::Application_insights
 
       configuration[:state_table_name] = AZURE_STORAGE_TABLE_LOGSTASH_PREFIX + configuration[:azure_storage_table_prefix] + STATE_TABLE_NAME
       configuration[:test_storage_container] = AZURE_STORAGE_CONTAINER_LOGSTASH_PREFIX + configuration[:azure_storage_container_prefix] + "-" + STORAGE_TEST_CONTAINER_NAME
+      configuration[:test_storage_table] = AZURE_STORAGE_TABLE_LOGSTASH_PREFIX + configuration[:azure_storage_table_prefix] + STORAGE_TEST_TABLE_NAME
       configuration[:partition_key_prefix] = configuration[:azure_storage_blob_prefix].gsub( "/", "" )
       configuration[:local_file_prefix] = LOCAL_FS_FILE_PREFIX + configuration[:azure_storage_blob_prefix].gsub( "/", "_" )
 
@@ -231,6 +232,9 @@ class LogStash::Outputs::Application_insights
         masked_keys = keys.map { |key| "*****************" }
         [ name, masked_keys ]
       }
+      masked_configuration.each_pair do |key, value|
+        masked_configuration[key] = "nil" if value.nil?
+      end
       masked_configuration[:storage_account_name_key] = masked_storage_account_name_key
       masked_configuration
     end

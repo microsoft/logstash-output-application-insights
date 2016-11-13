@@ -152,6 +152,7 @@ class LogStash::Outputs::Application_insights
 
   STATE_TABLE_NAME = "BlobsState"
   STORAGE_TEST_CONTAINER_NAME = "test-container"
+  STORAGE_TEST_TABLE_NAME = "TestTable"
 
   AZURE_STORAGE_CONTAINER_LOGSTASH_PREFIX = "logstash" # lower case only, dash allowed
   AZURE_STORAGE_BLOB_LOGSTASH_PREFIX = "logstash"

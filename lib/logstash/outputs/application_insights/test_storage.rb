@@ -26,17 +26,34 @@ class LogStash::Outputs::Application_insights
       # super first parameter must be nil. blob first parameter is channel, otherwise it will pass storage_account_name as channel
       super( nil )
       @storage_account_name = storage_account_name
+      @test_storage_container = @configuration[:test_storage_container]
+      @test_storage_table = @configuration[:test_storage_table]
       @action = :test_storage
-      @info = "#{@action} #{@storage_account_name}"
-      @recoverable = [ :invalid_storage_key, :container_exist, :create_container ]
+      @base_info = "#{@action} #{@storage_account_name}"
+      @recoverable = [ :invalid_storage_key, :container_exist, :create_container, :table_exist, :create_table ]
       @force_client = true # to enable get a client even if all storage_accounts marked dead
     end
 
     def test
+      test_container
+    end
+
+    def test_container
       @max_tries = 1
+      @info = "#{@base_info} - create #{@test_storage_container} container"
       storage_io_block {
         if @recovery.nil? || :invalid_storage_key == @recovery
-          @client.blobClient.create_container( @configuration[:test_storage_container] ) unless @configuration[:disable_blob_upload]
+          @client.blobClient.create_container( @test_storage_container ) unless @configuration[:disable_blob_upload]
+        end
+      }
+    end
+
+    def test_table
+      @max_tries = 1
+      @info = "#{@base_info} - create #{@test_storage_table} table"
+      storage_io_block {
+        if @recovery.nil? || :invalid_storage_key == @recovery
+          @client.tableClient.create_table( @test_storage_table ) unless @configuration[:disable_blob_upload]
         end
       }
     end
