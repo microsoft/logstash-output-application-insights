@@ -107,20 +107,25 @@ class LogStash::Outputs::Application_insights
 
           break if :close == file_to_upload
 
-          @file_size = nil
+          file_to_upload.open_read
+          @file_size = file_to_upload.file_size
+
           while block = file_to_upload.get_next_block
-            @file_size ||= file_to_upload.file_size
             unless upload( block )
+              # start the file from the begining
+              file_to_upload.close_read
               @channel.recover_later_file_upload( file_to_upload )
               file_to_upload = nil
-              @uploaded_block_ids = [  ]
               break
             end
           end
-          file_to_upload.dispose if file_to_upload
-          file_to_upload = nil
 
-          commit unless @uploaded_block_ids.empty?
+          if file_to_upload
+            commit unless @uploaded_block_ids.empty?
+            file_to_upload.dispose
+            file_to_upload = nil
+          end
+
           @uploaded_block_ids = [  ]
         end
       end
@@ -187,7 +192,11 @@ class LogStash::Outputs::Application_insights
         if @file_pipe
           # remove "loading" record from state table of all previous blocks uploaded , we will try the whole file on an alternative storage
           @storage_recovery.recover_later( context_to_tuple, :state_table_update, @storage_account_name )
+          # memory is decrmeneted because the retry is done from the begining of the file
+          bytesize = @block_to_upload.bytesize
+          @block_to_upload.dispose
           @block_to_upload = nil
+          State.instance.dec_upload_bytesize( bytesize )
           return
         else
           info1 = "#{:commit} #{@storage_account_name}/#{@container_name}/#{@blob_name}, events: #{@uploaded_events_count}, size: #{@uploaded_bytesize}, blocks: #{@uploaded_block_numbers}, delay: #{Time.now.utc - @oldest_event_time}"

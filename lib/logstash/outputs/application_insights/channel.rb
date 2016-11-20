@@ -129,8 +129,6 @@ class LogStash::Outputs::Application_insights
     end
 
     def recover_later_file_upload( file_to_upload )
-      # start the file from the begining
-      file_to_upload.close_read
       @failed_on_file_upload_retry_Q << file_to_upload
     end
 

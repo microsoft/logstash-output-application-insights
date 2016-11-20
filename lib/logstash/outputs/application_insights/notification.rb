@@ -60,7 +60,10 @@ class LogStash::Outputs::Application_insights
     def set_blob_sas_url
       blob_url ="https://#{@storage_account_name}.blob.#{@configuration[:azure_storage_host_suffix]}/#{@container_name}/#{@blob_name}"
       options_and_constrains = {:permissions => "r", :resource => "b", :expiry => ( Time.now.utc + @configuration[:blob_access_expiry_time] ).iso8601 }
-      @blob_sas_url = @client.storage_auth_sas.signed_uri( URI( blob_url ), options_and_constrains )
+      # breaking change after azure-storage 0.10.1 
+      # @blob_sas_url = @client.storage_auth_sas.signed_uri( URI( blob_url ), options_and_constrains )
+      use_account_sas = false
+      @blob_sas_url = @client.storage_auth_sas.signed_uri( URI( blob_url ), use_account_sas, options_and_constrains )
     end
 
 

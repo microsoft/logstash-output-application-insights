@@ -56,13 +56,17 @@ class LogStash::Outputs::Application_insights
     def blobClient
       raise UnexpectedBranchError, "client already disposed" unless @tuple
       @last_client_type = :blobClient
-      @current_azure_storage_client.blobClient
+      # breaking change after azure-storage 0.10.1 
+      # @current_azure_storage_client.blobClient
+      @current_azure_storage_client.blob_client
     end
 
     def tableClient
       raise UnexpectedBranchError, "client already disposed" unless @tuple
       @last_client_type = :blobClient
-      @current_azure_storage_client.tableClient
+      # breaking change after azure-storage 0.10.1 
+      # @current_azure_storage_client.tableClient
+      @current_azure_storage_client.table_client
     end
 
     def notifyClient
@@ -109,7 +113,9 @@ class LogStash::Outputs::Application_insights
       options[:ca_file] = configuration[:ca_file] unless configuration[:ca_file].empty?
 
       @current_azure_storage_client = Azure::Storage::Client.new( options )
-      @current_azure_storage_auth_sas = Azure::Storage::Auth::SharedAccessSignature.new( @storage_account_name, storage_access_key )
+      # breaking change after azure-storage 0.10.1 
+      # @current_azure_storage_auth_sas = Azure::Storage::Auth::SharedAccessSignature.new( @storage_account_name, storage_access_key )
+      @current_azure_storage_auth_sas = Azure::Storage::Core::Auth::SharedAccessSignature.new( @storage_account_name, storage_access_key )
     end
 
   end

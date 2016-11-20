@@ -43,6 +43,9 @@ class LogStash::Outputs::Application_insights
   class NotRecoverableError < StandardError
   end
 
+  class AssertError < StandardError
+  end
+
   # exception that cause process to end
   # LogStash::ConfigurationError, "ssl_truststore_location must be set when SSL is enabled"
   # class ConfigurationError < StandardError

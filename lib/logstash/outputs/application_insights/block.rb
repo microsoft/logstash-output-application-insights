@@ -40,6 +40,13 @@ class LogStash::Outputs::Application_insights
       @@semaphore.synchronize { @@Block_number = ( @@Block_number + 1 ) % 1000000 }
     end
 
+    def self.generate_block_numbers ( count )
+      @@semaphore.synchronize { 
+        firstNumber = ( @@Block_number + 1 ) % 1000000 
+        @@Block_number = ( @@Block_number + count ) % 1000000
+        firstNumber
+      }
+    end
 
 
     def initialize ( event_separator = "" )
