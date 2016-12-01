@@ -414,6 +414,14 @@ example:
 disable_blob_upload => true
 ```
 
+### disable_truncation
+When set to true, event fields won't be truncated to max 1MB (beware: The max allows bytes size per filed is 1MB, setting it to true, it will be just waste of bandwidth and storage) Default false
+Used for troubleshooting
+example:
+```ruby
+disable_truncation => true
+```
+
 ### stop_on_unknown_io_errors
 When set to true, process will stop if an unknown IO error is detected. Default false
 Used for troubleshooting

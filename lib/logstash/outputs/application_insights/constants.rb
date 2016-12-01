@@ -74,6 +74,7 @@ class LogStash::Outputs::Application_insights
       :csv_separator => @csv_separator || DEFAULT_CSV_SEPARATOR,
       :csv_default_value => @csv_default_value || DEFAULT_CSV_DEFAULT_VALUE,
       :disable_compression => @disable_compression || DEFAULT_DISABLE_COMPRESSION,
+      :disable_truncation => @disable_truncation || DEFAULT_DISABLE_TRUNCATION,
 
     }
   end
@@ -83,7 +84,7 @@ class LogStash::Outputs::Application_insights
                           :disable_cleanup, :delete_not_notified_blobs,
                           :validate_notification, :validate_storage,
                           :save_notified_blobs_records, :case_insensitive_columns,
-                          :disable_compression,
+                          :disable_compression, :disable_truncation,
                           :table_columns, :serialized_event_field ]
 
   GUID_NULL =                    "00000000-0000-0000-0000-000000000000"
@@ -144,6 +145,7 @@ class LogStash::Outputs::Application_insights
 
   MAX_CHANNEL_UPLOAD_PIPES = 40
   CHANNEL_THRESHOLD_TO_ADD_UPLOAD_PIPE = 3                # not relevant for file upload mode
+  MAX_FIELD_BYTES = 1024 * 1024
 
   METADATA_FIELD_INSTRUMENTATION_KEY = "[@metadata]instrumentation_key"
   METADATA_FIELD_TABLE_ID = "[@metadata]table_id"
@@ -202,6 +204,7 @@ class LogStash::Outputs::Application_insights
   DEFAULT_DELETE_NOT_NOTIFIED_BLOBS = false
   DEFAULT_SAVE_NOTIFIED_BLOBS_RECORDS = false
   DEFAULT_DISABLE_COMPRESSION = false
+  DEFAULT_DISABLE_TRUNCATION = false
   
   DEFAULT_CASE_INSENSITIVE = false
 

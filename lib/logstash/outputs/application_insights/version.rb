@@ -20,5 +20,5 @@
 # ----------------------------------------------------------------------------------
 
 # class LogStash::Outputs::Application_insights
-  APPLICATION_INSIGHTS_VERSION ||= "0.2.2"
+  APPLICATION_INSIGHTS_VERSION ||= "0.2.3"
 # end

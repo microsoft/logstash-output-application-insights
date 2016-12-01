@@ -305,6 +305,9 @@ class LogStash::Outputs::Application_insights < LogStash::Outputs::Base
 
   # When set to true, blobs won't be compressed. 
   config :disable_compression, :validate => :boolean
+
+  # When set to true, blobs won't be compressed. 
+  config :disable_truncation, :validate => :boolean
   public
 
   def register

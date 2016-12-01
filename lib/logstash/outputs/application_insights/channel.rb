@@ -34,6 +34,7 @@ class LogStash::Outputs::Application_insights
       @closing = false
       configuration = Config.current
       
+      @disable_truncation = configuration[:disable_truncation]
       @file_pipe = !configuration[:disable_compression]
       @gzip_file = !configuration[:disable_compression]
       @blob_max_bytesize = configuration[:blob_max_bytesize]
@@ -100,7 +101,7 @@ class LogStash::Outputs::Application_insights
         sub_channel = @workers_channel[Thread.current] || @semaphore.synchronize { @workers_channel[Thread.current] = Sub_channel.new( @event_separator ) }
         sub_channel << serialized_event
       else
-        @logger.warn { "event not uploaded, no relevant data in event. table_id: #{table_id}, event: #{data}" }
+        @logger.warn { "event not uploaded, no relevant data in event. table_id: #{@table_id}, event: #{data}" }
       end
     end
 
@@ -265,7 +266,7 @@ class LogStash::Outputs::Application_insights
         serialized_data = data
       elsif EXT_EVENT_FORMAT_CSV == @event_format
         if data.is_a?( Array )
-          serialized_data = data.to_csv( :col_sep => @csv_separator )
+          serialized_data = serialize_array_to_csv( data )
         elsif data.is_a?( Hash )
           serialized_data = serialize_to_csv( data )
         end
@@ -281,16 +282,26 @@ class LogStash::Outputs::Application_insights
 
 
     def serialize_to_json ( data )
-      return data.to_json unless !@table_columns.nil?
+      if (@table_columns.nil?)
+        json_hash = data
+      else
+        data = Utils.downcase_hash_keys( data ) if @case_insensitive_columns
 
-      data = Utils.downcase_hash_keys( data ) if @case_insensitive_columns
-
-      json_hash = {  }
-      @table_columns.each do |column|
-        value = data[column[:field_name]] || column[:default]
-        json_hash[column[:name]] = value if value
+        json_hash = {  }
+        @table_columns.each do |column|
+          value = data[column[:field_name]] || column[:default]
+          json_hash[column[:name]] = truncate_if_too_big( value ) if value
+        end
       end
+
       return nil if json_hash.empty?
+
+      json_string = json_hash.to_json
+      return json_string if json_string.bytesize < MAX_FIELD_BYTES || @disable_truncation
+
+      json_hash.each_pair do |name, value|
+        json_hash[name] = truncate_data_if_too_big( name, value )
+      end
       json_hash.to_json
     end
 
@@ -306,10 +317,79 @@ class LogStash::Outputs::Application_insights
         type = (column[:type] || value.class.name).downcase.to_sym
         csv_array << ( [:hash, :array, :json, :dynamic, :object].include?( type ) ? value.to_json : value )
       end
+      serialize_array_to_csv( csv_array )
+    end
+
+    def serialize_array_to_csv ( csv_array )
       return nil if csv_array.empty?
+      csv_string = csv_array.to_csv( :col_sep => @csv_separator )
+      return csv_string if csv_string.bytesize < MAX_FIELD_BYTES || @disable_truncation
+
+      index = 0
+      csv_array.map! do |value|
+        index += 1
+        truncate_data_if_too_big( index.to_s, value )
+      end
       csv_array.to_csv( :col_sep => @csv_separator )
     end
 
+
+    def truncate_data_if_too_big ( name, data )
+      return data if @disable_truncation
+
+      truncated = nil
+      if data.is_a?( String )
+        if data.bytesize > MAX_FIELD_BYTES
+          truncated = data.bytesize - MAX_FIELD_BYTES
+          data = data.byteslice( 0, MAX_FIELD_BYTES )
+        end
+      elsif data.is_a?( Hash )
+        str = data.to_json
+        while str.bytesize > MAX_FIELD_BYTES
+          truncated = str.bytesize - MAX_FIELD_BYTES unless truncated
+          delta = str.bytesize - MAX_FIELD_BYTES
+          max_size = 0
+          max_name = nil
+          data.each_pair do |name, value|
+            if value.is_a?( String ) && value.bytesize > max_size
+              max_name = name
+              max_size = value.bytesize
+            end
+          end
+          unless max_name
+            data = {}
+            break
+          end
+          data[max_name] = data[max_name].byteslice( 0,  max_size - ( max_size > delta ? delta : max_size ) )
+          str = data.to_json
+        end
+
+      elsif data.is_a?( Array )
+        str = data.to_json
+        while str.bytesize > MAX_FIELD_BYTES
+          truncated = str.bytesize - MAX_FIELD_BYTES unless truncated
+          delta = str.bytesize - MAX_FIELD_BYTES
+          max_size = 0
+          max_index = nil
+          data.each_index do |index|
+            value = data[index]
+            if value.is_a?( String ) && value.bytesize > max_size
+              max_index = index
+              max_size = value.bytesize
+            end
+          end
+          unless max_index
+            data = []
+            break
+          end
+          data[max_index] = data[max_index].byteslice( 0,  max_size - ( max_size > delta ? delta : max_size ) )
+          str = data.to_json
+        end
+      end
+
+      @logger.warn { "field #{name} was truncated by #{truncated} bytes, due to size above #{MAX_FIELD_BYTES} bytes. table_id: #{@table_id}" } if truncated
+      data
+    end
 
     def find_upload_pipe
       min_upload_pipe = @active_upload_pipes[0]
