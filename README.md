@@ -196,7 +196,7 @@ blob_max_bytesize => 4000000000
 ```
 
 ### blob_max_events
-Specifies, maximum number of events in one blob. Default 1,000,000 events
+Specifies, maximum number of events in one blob. Default 1,000,000 events.
 Setting it too low may improve latency, but will reduce ingestion performance
 Setting it too high may damage latency up to maximum delay, but ingestion will be more efficient, and load on network will be lower
 example:
@@ -205,7 +205,7 @@ blob_max_events => 1000000
 ```
 
 ### blob_max_delay
-Specifies maximum latency time, in seconds. Defualt 60 seconds
+Specifies maximum latency time, in seconds. Defualt 60 seconds.
 The latency time is measured since the time an event arrived till it is commited to azure storage, and Application Insights is notified.
 The total latency time may be higher, as this is not the full ingestion flow 
 example:
@@ -214,7 +214,7 @@ blob_max_delay => 3600
 ```
 
 ### blob_serialization
-Specifies the blob serialziation to create. Default "json"
+Specifies the blob serialziation to create. Default "json".
 currently 2 types are supported "csv" and "json""
 example:
 ```ruby
@@ -236,7 +236,7 @@ io_max_retries => 3
 ```
 
 ### blob_retention_time
-Specifies the retention time of the blob in the container after it is notified to Application Insighta Analytics. Dfeauly 604,800 seconds (1 week)
+Specifies the retention time of the blob in the container after it is notified to Application Insighta Analytics. Dfeauly 604,800 seconds (1 week).
 Once the retention time expires, the blob is the deleted from container
 example:
 ```ruby
@@ -244,7 +244,7 @@ blob_retention_time => 604800
 ```
 
 ### blob_access_expiry_time
-Specifies the time Application Insights Analytics have access to the blob that are notifie. Default 86,400 seconds ( 1 day)
+Specifies the time Application Insights Analytics have access to the blob that are notifie. Default 86,400 seconds ( 1 day).
 Blob access is limited with SAS URL
 example:
 ```ruby
@@ -341,14 +341,14 @@ flow_control_delay => 0.5
 ```
 
 ### ca_file
-File path of the CA file, required only if having issue with SSL (see OpenSSL). No default
+File path of the CA file, required only if having issue with SSL (see OpenSSL). No default.
 example:
 ```ruby
 ca_file => "/path/to/cafile.crt"
 ```
 
 ### enable_telemetry_to_microsoft
-When set to true, telemetry about the plugin, will't be sent to Microsoft. Deafult false
+When set to true, telemetry about the plugin, will't be sent to Microsoft. Deafult false.
 **Only if you want to allow Microsoft get telemtry data about this process set it to true**
 example:
 ```ruby
@@ -384,14 +384,14 @@ validate_notification => true
 ```
 
 ### validate_storage
-When set to true, access to azure storage for each of the configured accounts will be validated at initialization and if validation fail, logstash process will abort. Default false
+When set to true, access to azure storage for each of the configured accounts will be validated at initialization and if validation fail, logstash process will abort. Default false.
 example:
 ```ruby
 validate_storage => true
 ```
 
 ### save_notified_blobs_records
-When set to true, notified blobs records are saved in the state table, as long as blobs are retained in their containers. Default false
+When set to true, notified blobs records are saved in the state table, as long as blobs are retained in their containers. Default false.
 Used for troubleshooting
 example:
 ```ruby
@@ -399,7 +399,7 @@ save_notified_blobs_records => true
 ```
 
 ### disable_notification
-When set to true, notification is not sent to application insights, but behaves as if notified. Default false
+When set to true, notification is not sent to application insights, but behaves as if notified. Default false.
 Used for troubleshooting
 example:
 ```ruby
@@ -407,7 +407,7 @@ disable_notification => true
 ```
 
 ### disable_blob_upload
-When set to true, events are not uploaded, and blob not commited, but behaves as if uploaded and uploaded. Default false
+When set to true, events are not uploaded, and blob not commited, but behaves as if uploaded and uploaded. Default false.
 Used for troubleshooting
 example:
 ```ruby
@@ -415,7 +415,7 @@ disable_blob_upload => true
 ```
 
 ### disable_truncation
-When set to true, event fields won't be truncated to max 1MB (beware: The max allows bytes size per filed is 1MB, setting it to true, it will be just waste of bandwidth and storage) Default false
+When set to true, event fields won't be truncated to max 1MB (beware: The max allows bytes size per filed is 1MB, setting it to true, it will be just waste of bandwidth and storage) Default false.
 Used for troubleshooting
 example:
 ```ruby
@@ -423,7 +423,7 @@ disable_truncation => true
 ```
 
 ### stop_on_unknown_io_errors
-When set to true, process will stop if an unknown IO error is detected. Default false
+When set to true, process will stop if an unknown IO error is detected. Default false.
 Used for troubleshooting
 example:
 ```ruby
@@ -431,21 +431,21 @@ stop_on_unknown_io_errors => true
 ```
 
 ### azure_storage_host_suffix
-when set an alternative storage service will be used. Default "core.windows.net"
+when set an alternative storage service will be used. Default "core.windows.net".
 example:
 ```ruby
 azure_storage_host_suffix => "core.windows.net"
 ```
 
 ### application_insights_endpoint
-when set blob ready notification are sent to an alternative endpoint. Default "https://dc.services.visualstudio.com/v2/track"
+when set blob ready notification are sent to an alternative endpoint. Default "https://dc.services.visualstudio.com/v2/track".
 example:
 ```ruby
 application_insights_endpoint => "https://dc.services.visualstudio.com/v2/track"
 ```
 
 ### notification_version
-Advanced, internal, should not be set, the only current valid value is 1
+Advanced, internal, should not be set, the only current valid value is 1.
 example:
 ```ruby
 notification_version => 1

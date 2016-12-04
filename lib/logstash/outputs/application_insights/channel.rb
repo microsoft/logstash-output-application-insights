@@ -290,7 +290,7 @@ class LogStash::Outputs::Application_insights
         json_hash = {  }
         @table_columns.each do |column|
           value = data[column[:field_name]] || column[:default]
-          json_hash[column[:name]] = truncate_if_too_big( value ) if value
+          json_hash[column[:name]] = value if value
         end
       end
 
